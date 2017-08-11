@@ -8,12 +8,9 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.tam.media.FrameGrabber;
-//import com.tam.media.VideoDecoder;
 
-import org.codec.media.VideoDecoder;
 import org.jcodec.api.JCodecException;
 import org.jcodec.api.android.AndroidFrameGrab;
-import org.jcodec.common.RunLength;
 import org.jcodec.common.io.FileChannelWrapper;
 import org.jcodec.common.io.NIOUtils;
 
@@ -33,7 +30,7 @@ public class MainActivity extends AppCompatActivity{
 	private static String hdHigh24 = videoFolder + "cats_with_timecode-1920x1080-24fps-baseline-14mpbs.mp4";
 
 	private static int startFrame = 0;
-	private static int endFrame = 100;
+	private static int endFrame = 200;
 
     @Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -43,24 +40,12 @@ public class MainActivity extends AppCompatActivity{
 
 		long startTime = System.currentTimeMillis();
 
-		/*VideoDecoder decoder = new VideoDecoder(lowVideo);
-		try{
-			decoder.init();
-			decoder.decodeFrameAt(10);
-		}finally {
-			decoder.release();
-		}
-		//decodeVideoSequence(hdLowVideo, startFrame, endFrame, 640, 360, false);
+		decodeVideoSequence(lowVideo, startFrame, endFrame, false);
 		/*try {
 			decodeVideoSequence(hdLowVideo, startFrame, endFrame, false);
 		} catch (IOException | JCodecException e) {
 			e.printStackTrace();
 		}*/
-		try {
-			new ExtractMpegFramesTest().testExtractMpegFrames();
-		} catch (Throwable throwable) {
-			throwable.printStackTrace();
-		}
 		long endTime = System.currentTimeMillis();
 		long totalTime = (endTime - startTime) / 1000;
 
@@ -100,7 +85,7 @@ public class MainActivity extends AppCompatActivity{
 			Bitmap bmp;
 
 			if(!ffmpeg){
-                bmp = getFrameAtTime(filePath, frame * 33333);
+				bmp = getFrameAtTime(filePath, frame * 33333);
 			}else{
                 FFmpegMediaMetadataRetriever mRetriever = new FFmpegMediaMetadataRetriever();
 				mRetriever.setDataSource(filePath);
@@ -110,6 +95,7 @@ public class MainActivity extends AppCompatActivity{
 			String location = videoFolder + "frames/frame_"+i+".jpg";
 			saveBitmap(bmp, location);
 		}
+		grab.release();
 	}
 
 	void decodeVideoSequence(String filePath, int start, int end, int width, int height, boolean ffmpeg){
