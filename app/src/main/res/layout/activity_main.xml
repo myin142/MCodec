@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="org.codec.MainActivity">
+    tools:context="org.codec.Decoder">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -21,12 +21,6 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:text="Hello World!" />
-
-        <ImageView
-            android:id="@+id/imageView"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"/>
 
         <SurfaceView
             android:id="@+id/surfaceView"

@@ -88,9 +88,10 @@ public class VideoDecoder {
 	
 	private boolean mIsInputEOS = false;
 	private boolean decodeFrameAt(long timeUs) {
-		//Log.i(TAG, "decodeFrameAt " + timeUs);
+		Log.i(TAG, "decodeFrameAt " + timeUs);
 		mMediaExtractor.seekTo(timeUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-				
+		Log.i(TAG, "sampleTime " + mMediaExtractor.getSampleTime());
+
 		mIsInputEOS = false;
 		CodecState inputState = new CodecState();
 		CodecState outState = new CodecState();
@@ -123,13 +124,13 @@ public class VideoDecoder {
 			return false;
 		
 		if (state.outIndex >= 0 && state.info.presentationTimeUs < timeUs) {
-			//Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
+			Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
 			mMediaCodec.releaseOutputBuffer(state.outIndex, false);
 			return false;
 		}
 		
 		if (state.outIndex >= 0) {
-			//Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
+			Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
 			mMediaCodec.releaseOutputBuffer(state.outIndex, true);
 			return true;
 		}
@@ -163,8 +164,10 @@ public class VideoDecoder {
 			int readSize = mMediaExtractor.readSampleData(in, 0);
 			long presentationTimeUs = mMediaExtractor.getSampleTime();
 			int flags = mMediaExtractor.getSampleFlags();
-													
+
+			Log.i(TAG, "sampleTime before " + mMediaExtractor.getSampleTime());
 			boolean EOS = !mMediaExtractor.advance();
+			Log.i(TAG, "sampleTime after " + mMediaExtractor.getSampleTime());
 			EOS |= (readSize <= 0);
 			EOS |= ((flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) > 0);
 			

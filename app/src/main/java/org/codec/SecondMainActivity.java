@@ -15,6 +15,7 @@ import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.SurfaceView;
 import android.widget.ImageView;
 
 import com.tam.media.FrameGrabber;
@@ -74,8 +75,8 @@ public class SecondMainActivity extends AppCompatActivity {
         startDecodeTask(bunnyVid);
 
         // Add Swipe Listener
-        ImageView iView = (ImageView) findViewById(R.id.imageView);
-        iView.setOnTouchListener(new SwipeListener(this){
+        SurfaceView sView = (SurfaceView) findViewById(R.id.surfaceView);
+        sView.setOnTouchListener(new SwipeListener(this){
             public void onSwipeLeft(){
                 if(taskFinished())
                     currFrame += nextFrame;
@@ -167,8 +168,7 @@ public class SecondMainActivity extends AppCompatActivity {
     }
 
     void display(Bitmap bitmap) {
-        ImageView iView = (ImageView) findViewById(R.id.imageView);
-        iView.setImageBitmap(bitmap);
+        SurfaceView sView = (SurfaceView) findViewById(R.id.surfaceView);
     }
 
     // Get Frame Rate of Video

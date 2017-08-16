@@ -6,6 +6,8 @@ import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 import com.tam.media.FrameGrabber;
 
@@ -40,7 +42,11 @@ public class MainActivity extends AppCompatActivity{
 
 		long startTime = System.currentTimeMillis();
 
-		decodeVideoSequence(lowVideo, startFrame, endFrame, false);
+        FrameGrabber grab = new FrameGrabber();
+		grab.setDataSource(lowVideo);
+        grab.init();
+		Bitmap bm = grab.getFrameAtTime(1);
+		saveBitmap(bm, videoFolder + "test.jpg");
 		/*try {
 			decodeVideoSequence(hdLowVideo, startFrame, endFrame, false);
 		} catch (IOException | JCodecException e) {
