@@ -27,8 +27,10 @@ import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
-public class DecodeActivity extends AppCompatActivity {
+public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.OnFrameAvailableListener{
     private static String videoFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/videos/";
     private static String hdLowVideo = "cats_with_timecode-1920x1080-30fps-baseline-4mbps.mp4";
     private static String hdHighVideo = "cats_with_timecode-1920x1080-30fps-main-14mbps.mp4";
@@ -40,71 +42,202 @@ public class DecodeActivity extends AppCompatActivity {
     private static boolean VERBOSE = true;
 
     private static final String SAMPLE = videoFolder + hdHighBase;
-    private CodecOutputSurface output = new CodecOutputSurface(640, 360);
     private PlayerThread player = null;
 
+    private Surface output;
+    private SurfaceTexture sTexture;
+    private int mTextureID = -12345;
+
+    private Object mFrameSyncObject = new Object();     // guards mFrameAvailable
+    private boolean mFrameAvailable;
+
+    EGLDisplay mEGLDisplay = EGL14.EGL_NO_DISPLAY;
+    EGLContext mEGLContext = EGL14.EGL_NO_CONTEXT;
+    EGLSurface mEGLSurface = EGL14.EGL_NO_SURFACE;
+    int mWidth = 640;
+    int mHeight = 360;
+
+    // Entry Point
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        player = new PlayerThread(output.getSurface());
+        SurfaceView sView = (SurfaceView) findViewById(R.id.surfaceView);
+        SurfaceHolder holder = sView.getHolder();
+
+
+        // Setup EGL Variables
+        eglSetup();
+        makeCurrent();
+
+        // Creat Surface with SurfaceTexture
+        createSurface();
+
+        // Create Thread and start decode
+        player = new PlayerThread(holder.getSurface());
         player.start();
+    }
+
+    void createSurface(){
+        sTexture = new SurfaceTexture(mTextureID);
+        sTexture.setOnFrameAvailableListener(this);
+
+        output = new Surface(sTexture);
+    }
+
+    void eglSetup(){
+        mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
+        if (mEGLDisplay == EGL14.EGL_NO_DISPLAY) {
+            throw new RuntimeException("unable to get EGL14 display");
+        }
+        int[] version = new int[2];
+        if (!EGL14.eglInitialize(mEGLDisplay, version, 0, version, 1)) {
+            mEGLDisplay = null;
+            throw new RuntimeException("unable to initialize EGL14");
+        }
+
+        // Configure EGL for pbuffer and OpenGL ES 2.0, 24-bit RGB.
+        int[] attribList = {
+                EGL14.EGL_RED_SIZE, 8,
+                EGL14.EGL_GREEN_SIZE, 8,
+                EGL14.EGL_BLUE_SIZE, 8,
+                EGL14.EGL_ALPHA_SIZE, 8,
+                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+                EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT,
+                EGL14.EGL_NONE
+        };
+        EGLConfig[] configs = new EGLConfig[1];
+        int[] numConfigs = new int[1];
+        if (!EGL14.eglChooseConfig(mEGLDisplay, attribList, 0, configs, 0, configs.length,
+                numConfigs, 0)) {
+            throw new RuntimeException("unable to find RGB888+recordable ES2 EGL config");
+        }
+
+        // Configure context for OpenGL ES 2.0.
+        int[] attrib_list = {
+                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+                EGL14.EGL_NONE
+        };
+        mEGLContext = EGL14.eglCreateContext(mEGLDisplay, configs[0], EGL14.EGL_NO_CONTEXT,
+                attrib_list, 0);
+        checkEglError("eglCreateContext");
+        if (mEGLContext == null) {
+            throw new RuntimeException("null context");
+        }
+
+        // Create a pbuffer surface.
+        int[] surfaceAttribs = {
+                EGL14.EGL_WIDTH, mWidth,
+                EGL14.EGL_HEIGHT, mHeight,
+                EGL14.EGL_NONE
+        };
+        mEGLSurface = EGL14.eglCreatePbufferSurface(mEGLDisplay, configs[0], surfaceAttribs, 0);
+        checkEglError("eglCreatePbufferSurface");
+        if (mEGLSurface == null) {
+            throw new RuntimeException("surface was null");
+        }
+    }
+
+    public void release() {
+        if (mEGLDisplay != EGL14.EGL_NO_DISPLAY) {
+            EGL14.eglDestroySurface(mEGLDisplay, mEGLSurface);
+            EGL14.eglDestroyContext(mEGLDisplay, mEGLContext);
+            EGL14.eglReleaseThread();
+            EGL14.eglTerminate(mEGLDisplay);
+        }
+        mEGLDisplay = EGL14.EGL_NO_DISPLAY;
+        mEGLContext = EGL14.EGL_NO_CONTEXT;
+        mEGLSurface = EGL14.EGL_NO_SURFACE;
+
+        output.release();
+
+        // this causes a bunch of warnings that appear harmless but might confuse someone:
+        //  W BufferQueue: [unnamed-3997-2] cancelBuffer: BufferQueue has been abandoned!
+        //mSurfaceTexture.release();
+
+        output = null;
+        sTexture = null;
+    }
+
+    public void makeCurrent() {
+        if (!EGL14.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext)) {
+            throw new RuntimeException("eglMakeCurrent failed");
+        }
+    }
+
+    private void checkEglError(String msg) {
+        int error;
+        if ((error = EGL14.eglGetError()) != EGL14.EGL_SUCCESS) {
+            throw new RuntimeException(msg + ": EGL error: 0x" + Integer.toHexString(error));
+        }
+    }
+
+    @Override
+    public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+        synchronized (mFrameSyncObject) {
+            if (mFrameAvailable) {
+                throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
+            }
+            mFrameAvailable = true;
+            mFrameSyncObject.notifyAll();
+        }
     }
 
     private class PlayerThread extends Thread {
         private MediaExtractor extractor;
         private MediaCodec decoder;
         private Surface surface;
+        int timeout = 10000;
 
         public PlayerThread(Surface surface){
             this.surface = surface;
         }
 
         private void initDecoder() {
-                                       extractor = new MediaExtractor();
-                                       try {
-                                       extractor.setDataSource(SAMPLE);
-                                       } catch (IOException e) {
-                                       e.printStackTrace();
-                                       }
+            extractor = new MediaExtractor();
+            try {
+                extractor.setDataSource(SAMPLE);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-                                       for (int i = 0; i < extractor.getTrackCount(); i++) {
-                                       MediaFormat format = extractor.getTrackFormat(i);
-                                       String mime = format.getString(MediaFormat.KEY_MIME);
-                                       if (mime.startsWith("video/")) {
-                                       extractor.selectTrack(i);
-                                       try {
-                                       decoder = MediaCodec.createDecoderByType(mime);
-                                       } catch (IOException e) {
-                                       e.printStackTrace();
-                                       }
-                                       decoder.configure(format, surface, null, 0);
-                                       break;
-                                       }
-                                       }
+            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                MediaFormat format = extractor.getTrackFormat(i);
+                String mime = format.getString(MediaFormat.KEY_MIME);
+                if (mime.startsWith("video/")) {
+                extractor.selectTrack(i);
+                try {
+                decoder = MediaCodec.createDecoderByType(mime);
+                } catch (IOException e) {
+                e.printStackTrace();
+                }
+                decoder.configure(format, surface, null, 0);
+                break;
+                }
+            }
 
-                                       if (decoder == null) {
-                                       Log.e("DecodeActivity", "Can't find video info!");
-                                       return;
-                                       }
+            if (decoder == null) {
+                Log.e("DecodeActivity", "Can't find video info!");
+                return;
+            }
 
-                                       decoder.start();
-                                       }
+            decoder.start();
+        }
 
-        @Override
-        public void run() {
-            initDecoder();
-
+        private boolean getFrameAt(int t){
+            // Set Variables and go to specified time in video
             BufferInfo info = new BufferInfo();
-            int timeout = 10000;
-            long time = 1 * 33333;
+            long time = t * 33333;
             extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
 
+            // While render frame not reached
             boolean render = false;
             while (!render) {
+                // On Input Available
                 int inputId = decoder.dequeueInputBuffer(timeout);
                 if (inputId >= 0) {
+                    // Read Data
                     ByteBuffer buffer = decoder.getInputBuffer(inputId);
                     int sample = 0;
                     if (buffer != null) {
@@ -112,6 +245,7 @@ public class DecodeActivity extends AppCompatActivity {
                     }
                     long presentationTime = extractor.getSampleTime();
 
+                    // Queue Input and continue
                     if (sample < 0) {
                         decoder.queueInputBuffer(inputId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     } else {
@@ -121,34 +255,64 @@ public class DecodeActivity extends AppCompatActivity {
 
                 }
 
+                // On Output Available
                 int outputId = decoder.dequeueOutputBuffer(info, timeout);
                 if (outputId >= 0) {
+                    // If video time equals searched time, then render
                     if (info.presentationTimeUs >= time) render = true;
                     decoder.releaseOutputBuffer(outputId, render);
-                    if (render) {
-                        if (VERBOSE) Log.d(TAG, "awaiting decode of frame");
-                        output.awaitNewImage();
-                        if (VERBOSE) Log.d(TAG, "drawing image");
-                        output.drawImage(true);
-
-                        File outputFile = new File(videoFolder + "test.jpg");
-                        try {
-                            if (VERBOSE) Log.d(TAG, "saving image");
-                            output.saveFrame(outputFile.toString());
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
                 }
             }
 
+            return render;
+        }
+
+        // Thread Entry Point
+        @Override
+        public void run() {
+            // Create Decoder and start
+            initDecoder();
+
+            // Get Frame at specified time to Output Surface
+            getFrameAt(0);
+
+            // Wait until frame is available
+            synchronized (mFrameSyncObject) {
+                while (!mFrameAvailable) {
+                    try {
+                        mFrameSyncObject.wait(timeout);
+                        if (!mFrameAvailable) {
+                            throw new RuntimeException("frame wait timed out");
+                        }
+                    } catch (InterruptedException ie) {
+                        throw new RuntimeException(ie);
+                    }
+                }
+                mFrameAvailable = false;
+
+                // On Frame Available
+                Log.d(TAG, "Frame Available");
+                //sTexture.updateTexImage();
+            }
+
+            Log.d(TAG, "Decoder Released");
             decoder.stop();
             decoder.release();
             extractor.release();
         }
     }
 
-    private static class CodecOutputSurface
+    void saveBitmap(Bitmap bm, String location){
+        try {
+            FileOutputStream out = new FileOutputStream(location);
+            bm.compress(Bitmap.CompressFormat.JPEG, 100, out);
+            out.close();
+        }catch(IOException e){
+            e.printStackTrace();
+        }
+    }
+
+    /*private static class CodecOutputSurface
             implements SurfaceTexture.OnFrameAvailableListener {
         private STextureRender mTextureRender;
         private SurfaceTexture mSurfaceTexture;
@@ -165,11 +329,6 @@ public class DecodeActivity extends AppCompatActivity {
 
         private ByteBuffer mPixelBuf;                       // used by saveFrame()
 
-        /**
-         * Creates a CodecOutputSurface backed by a pbuffer with the specified dimensions.  The
-         * new EGL context and surface will be made current.  Creates a Surface that can be passed
-         * to MediaCodec.configure().
-         */
         public CodecOutputSurface(int width, int height) {
             if (width <= 0 || height <= 0) {
                 throw new IllegalArgumentException();
@@ -182,9 +341,6 @@ public class DecodeActivity extends AppCompatActivity {
             setup();
         }
 
-        /**
-         * Creates interconnected instances of TextureRender, SurfaceTexture, and Surface.
-         */
         private void setup() {
             mTextureRender = new STextureRender();
             mTextureRender.surfaceCreated();
@@ -192,17 +348,6 @@ public class DecodeActivity extends AppCompatActivity {
             if (VERBOSE) Log.d(TAG, "textureID=" + mTextureRender.getTextureId());
             mSurfaceTexture = new SurfaceTexture(mTextureRender.getTextureId());
 
-            // This doesn't work if this object is created on the thread that CTS started for
-            // these test cases.
-            //
-            // The CTS-created thread has a Looper, and the SurfaceTexture constructor will
-            // create a Handler that uses it.  The "frame available" message is delivered
-            // there, but since we're not a Looper-based thread we'll never see it.  For
-            // this to do anything useful, CodecOutputSurface must be created on a thread without
-            // a Looper, so that SurfaceTexture uses the main application Looper instead.
-            //
-            // Java language note: passing "this" out of a constructor is generally unwise,
-            // but we should be able to get away with it here.
             mSurfaceTexture.setOnFrameAvailableListener(this);
 
             mSurface = new Surface(mSurfaceTexture);
@@ -211,9 +356,6 @@ public class DecodeActivity extends AppCompatActivity {
             mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
         }
 
-        /**
-         * Prepares EGL.  We want a GLES 2.0 context and a surface that supports pbuffer.
-         */
         private void eglSetup() {
             mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
             if (mEGLDisplay == EGL14.EGL_NO_DISPLAY) {
@@ -267,9 +409,6 @@ public class DecodeActivity extends AppCompatActivity {
             }
         }
 
-        /**
-         * Discard all resources held by this class, notably the EGL context.
-         */
         public void release() {
             if (mEGLDisplay != EGL14.EGL_NO_DISPLAY) {
                 EGL14.eglDestroySurface(mEGLDisplay, mEGLSurface);
@@ -292,27 +431,16 @@ public class DecodeActivity extends AppCompatActivity {
             mSurfaceTexture = null;
         }
 
-        /**
-         * Makes our EGL context and surface current.
-         */
         public void makeCurrent() {
             if (!EGL14.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext)) {
                 throw new RuntimeException("eglMakeCurrent failed");
             }
         }
 
-        /**
-         * Returns the Surface.
-         */
         public Surface getSurface() {
             return mSurface;
         }
 
-        /**
-         * Latches the next buffer into the texture.  Must be called from the thread that created
-         * the CodecOutputSurface object.  (More specifically, it must be called on the thread
-         * with the EGLContext that contains the GL texture object used by SurfaceTexture.)
-         */
         public void awaitNewImage() {
             final int TIMEOUT_MS = 2500;
 
@@ -347,11 +475,6 @@ public class DecodeActivity extends AppCompatActivity {
             Log.d(TAG, "SurfaceTexture updated");
         }
 
-        /**
-         * Draws the data from SurfaceTexture onto the current EGL surface.
-         *
-         * @param invert if set, render the image with Y inverted (0,0 in top left)
-         */
         public void drawImage(boolean invert) {
             mTextureRender.drawFrame(mSurfaceTexture, invert);
         }
@@ -369,9 +492,6 @@ public class DecodeActivity extends AppCompatActivity {
             }
         }
 
-        /**
-         * Saves the current frame to disk as a PNG image.
-         */
         public void saveFrame(String filename) throws IOException {
             // glReadPixels gives us a ByteBuffer filled with what is essentially big-endian RGBA
             // data (i.e. a byte of red, followed by a byte of green...).  To use the Bitmap
@@ -425,9 +545,6 @@ public class DecodeActivity extends AppCompatActivity {
             }
         }
 
-        /**
-         * Checks for EGL errors.
-         */
         private void checkEglError(String msg) {
             int error;
             if ((error = EGL14.eglGetError()) != EGL14.EGL_SUCCESS) {
@@ -494,9 +611,6 @@ public class DecodeActivity extends AppCompatActivity {
             return mTextureID;
         }
 
-        /**
-         * Draws the external texture in SurfaceTexture onto the current EGL surface.
-         */
         public void drawFrame(SurfaceTexture st, boolean invert) {
             checkGlError("onDrawFrame start");
             st.getTransformMatrix(mSTMatrix);
@@ -539,9 +653,6 @@ public class DecodeActivity extends AppCompatActivity {
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
         }
 
-        /**
-         * Initializes GL state.  Call this after the EGL surface has been created and made current.
-         */
         public void surfaceCreated() {
             mProgram = createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
             if (mProgram == 0) {
@@ -576,9 +687,6 @@ public class DecodeActivity extends AppCompatActivity {
             checkGlError("glTexParameter");
         }
 
-        /**
-         * Replaces the fragment shader.  Pass in null to reset to default.
-         */
         public void changeFragmentShader(String fragmentShader) {
             if (fragmentShader == null) {
                 fragmentShader = FRAGMENT_SHADER;
@@ -649,5 +757,5 @@ public class DecodeActivity extends AppCompatActivity {
                 throw new RuntimeException("Unable to locate '" + label + "' in program");
             }
         }
-    }
+    }*/
 }
