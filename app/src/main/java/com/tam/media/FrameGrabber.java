@@ -11,13 +11,18 @@ import android.os.HandlerThread;
 import android.util.Log;
 import android.view.Surface;
 
+import java.util.ArrayList;
+
 public class FrameGrabber {
 	final static String TAG = "FrameGrabber";
 	
 	private HandlerThread mGLThread = null;
 	private Handler mGLHandler = null;
 	private GLHelper mGLHelper = null;
-	
+
+	private Surface surface = null;
+	private SurfaceTexture sTexture = null;
+	private int textureID;
 	private int mDefaultTextureID = 10001;
 	
 	private int mWidth = 1920;
@@ -41,15 +46,21 @@ public class FrameGrabber {
 		mHeight = height;
 	}
 	
-	public void init() {		
+	public void init() {
 		mGLHandler.post(new Runnable() {
 			@Override
 			public void run() {				
 				SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
 				st.setDefaultBufferSize(mWidth, mHeight);
 				mGLHelper.init(st);
-			}			
+			}
 		});
+	}
+
+	public void createSurface(){
+		textureID = mGLHelper.createOESTexture();
+		sTexture = new SurfaceTexture(textureID);
+		surface = new Surface(sTexture);
 	}
 	
 	public void release() {
@@ -64,8 +75,9 @@ public class FrameGrabber {
 	
 	private Object mWaitBitmap = new Object();
 	private Bitmap mBitmap = null;
+	private ArrayList<Bitmap> mBitmapArr = null;
 
-	public Bitmap getFrameAtTime(final long frameTime) {
+	public Bitmap getFrameAt(final int frameNumber) {
 		if (mPath == null || mPath.isEmpty()) {
 			throw new RuntimeException("Illegal State");
 		}
@@ -73,7 +85,7 @@ public class FrameGrabber {
 		mGLHandler.post(new Runnable() {
 			@Override
 			public void run() {
-				getFrameAtTimeImpl(frameTime);
+				getFrameAtImpl(frameNumber);
 			}			
 		});		
 		
@@ -84,37 +96,78 @@ public class FrameGrabber {
 				e.printStackTrace();
 			}
 		}
-		
+
 		return mBitmap;
 	}
-	
-	//@SuppressLint("SdCardPath")
-	public void getFrameAtTimeImpl(long frameTime) {
-		final int textureID = mGLHelper.createOESTexture();
-		final SurfaceTexture st = new SurfaceTexture(textureID);
-		final Surface surface = new Surface(st);
+
+	public void getFrameAtImpl(int frameNumber) {
+        createSurface();
 		final VideoDecoder vd = new VideoDecoder(mPath, surface);
-		st.setOnFrameAvailableListener(new OnFrameAvailableListener() {
+		sTexture.setOnFrameAvailableListener(new OnFrameAvailableListener() {
 			@Override
 			public void onFrameAvailable(SurfaceTexture surfaceTexture) {
 				//Log.i(TAG, "onFrameAvailable");
-				mGLHelper.drawFrame(st, textureID);
-				mBitmap = mGLHelper.readPixels(mWidth, mHeight);				
+				mGLHelper.drawFrame(sTexture, textureID);
+				mBitmap = mGLHelper.readPixels(mWidth, mHeight);
 				synchronized (mWaitBitmap) {						
 					mWaitBitmap.notify();						
 				}
 				
 				vd.release();
-				st.release();
+				sTexture.release();
 				surface.release();
 			}			
-		});			
-				
-		if (!vd.prepare(frameTime)) {
-			mBitmap = null;
-			synchronized (mWaitBitmap) {						
-				mWaitBitmap.notify();						
+		});
+		vd.prepare(frameNumber);
+	}
+
+	public ArrayList<Bitmap> getFrameAt(final int start, final int end) {
+		if (mPath == null || mPath.isEmpty()) {
+			throw new RuntimeException("Illegal State");
+		}
+
+		mGLHandler.post(new Runnable() {
+			@Override
+			public void run() {
+				getFrameAtImpl(start, end);
+			}
+		});
+
+		synchronized (mWaitBitmap) {
+			try {
+				mWaitBitmap.wait();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
 		}
+
+		return mBitmapArr;
+	}
+
+	public void getFrameAtImpl(int start, int end) {
+		createSurface();
+		final VideoDecoder vd = new VideoDecoder(mPath, surface);
+        final int size = end - start;
+		mBitmapArr = new ArrayList<>();
+		sTexture.setOnFrameAvailableListener(new OnFrameAvailableListener() {
+			@Override
+			public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+				mGLHelper.drawFrame(sTexture, textureID);
+				Bitmap bm = mGLHelper.readPixels(mWidth, mHeight);
+				mBitmapArr.add(bm);
+				Log.d(TAG, "Save To Array");
+
+				if(mBitmapArr.toArray().length >= size) {
+					synchronized (mWaitBitmap) {
+						mWaitBitmap.notify();
+					}
+
+					vd.release();
+					sTexture.release();
+					surface.release();
+				}
+			}
+		});
+		vd.prepare(start, end);
 	}
 }

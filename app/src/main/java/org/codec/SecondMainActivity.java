@@ -53,7 +53,7 @@ public class SecondMainActivity extends AppCompatActivity {
         mFrameGrabber.setDataSource(path);
         mFrameGrabber.setTargetSize(640, 360);
         mFrameGrabber.init();
-        return mFrameGrabber.getFrameAtTime(time);
+        return mFrameGrabber.getFrameAt(0);
     }
 
     void saveBitmap(Bitmap bm, String location){

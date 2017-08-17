@@ -1,5 +1,6 @@
 package com.tam.media;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -21,6 +22,7 @@ public class VideoDecoder {
 	private Surface mSurface = null;
 	private String mPath = null;	
 	private int mVideoTrackIndex = -1;
+	private int timeout = 10000;
 	
 	public VideoDecoder(String path, Surface surface) {
 		mPath = path;
@@ -28,14 +30,25 @@ public class VideoDecoder {
 		
 		initCodec();
 	}
-	
-	public boolean prepare(long time) {
-		return decodeFrameAt(time);
+
+	public int getFrameRate(){
+		int frameRate = 24; //may be default
+        int numTracks = mMediaExtractor.getTrackCount();
+        for (int i = 0; i < numTracks; ++i) {
+            MediaFormat format = mMediaExtractor.getTrackFormat(i);
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            if (mime.startsWith("video/")) {
+                if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                    frameRate = format.getInteger(MediaFormat.KEY_FRAME_RATE);
+                }
+            }
+        }
+
+		int result = (int)((1f / frameRate) * 1000 * 1000);
+
+		return result;
 	}
-	
-	public void startDecode() {		
-	}
-	
+
 	public void release() {
 		if (null != mMediaCodec) {
 			mMediaCodec.stop();
@@ -44,6 +57,28 @@ public class VideoDecoder {
 		
 		if (null != mMediaExtractor) {
 			mMediaExtractor.release();
+		}
+	}
+
+	public void prepare(int frame){
+		// Set Variables and go to specified time in video
+		BufferInfo info = new BufferInfo();
+		long time = frame * getFrameRate();
+		mMediaExtractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+
+		decodeFrameAt(time, info);
+	}
+
+	public void prepare(int startFrame, int lastFrame){
+		// Set Variables and go to specified time in video
+		BufferInfo info = new BufferInfo();
+		int fps = getFrameRate();
+		long startTime = startFrame * fps;
+		long endTime = lastFrame * fps;
+		mMediaExtractor.seekTo(startTime, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+
+		for(long i = startTime; i <= endTime; i+=fps){
+			decodeFrameAt(i, info);
 		}
 	}
 	
@@ -85,12 +120,54 @@ public class VideoDecoder {
 		
 		return true;
 	}
-	
-	private boolean mIsInputEOS = false;
+
+	private void decodeFrameAt(long time, BufferInfo info){
+
+		// While render frame not reached
+		boolean render = false;
+		while (!render) {
+			// On Input Available
+			int inputId = mMediaCodec.dequeueInputBuffer(timeout);
+			if (inputId >= 0) {
+				// Read Data
+				ByteBuffer buffer = mMediaCodec.getInputBuffer(inputId);
+				int sample = 0;
+				if (buffer != null) {
+					sample = mMediaExtractor.readSampleData(buffer, 0);
+				}
+				long presentationTime = mMediaExtractor.getSampleTime();
+
+				// Queue Input and continue
+				if (sample < 0) {
+					mMediaCodec.queueInputBuffer(inputId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+				} else {
+					mMediaCodec.queueInputBuffer(inputId, 0, sample, presentationTime, 0);
+					mMediaExtractor.advance();
+				}
+
+			}
+
+			// On Output Available
+			int outputId = mMediaCodec.dequeueOutputBuffer(info, timeout);
+			if (outputId >= 0) {
+				// If video time equals searched time, then render
+				if (info.presentationTimeUs >= time) render = true;
+				mMediaCodec.releaseOutputBuffer(outputId, render);
+				Log.d(TAG, "Release Output, InfoTime = "+info.presentationTimeUs+",render = " + render);
+				try {
+					Thread.sleep(5000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	/*private boolean mIsInputEOS = false;
 	private boolean decodeFrameAt(long timeUs) {
-		Log.i(TAG, "decodeFrameAt " + timeUs);
+		//Log.i(TAG, "decodeFrameAt " + timeUs);
 		mMediaExtractor.seekTo(timeUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-		Log.i(TAG, "sampleTime " + mMediaExtractor.getSampleTime());
+		//Log.i(TAG, "sampleTime " + mMediaExtractor.getSampleTime());
 
 		mIsInputEOS = false;
 		CodecState inputState = new CodecState();
@@ -124,13 +201,13 @@ public class VideoDecoder {
 			return false;
 		
 		if (state.outIndex >= 0 && state.info.presentationTimeUs < timeUs) {
-			Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
+			//Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
 			mMediaCodec.releaseOutputBuffer(state.outIndex, false);
 			return false;
 		}
 		
 		if (state.outIndex >= 0) {
-			Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
+			//Log.i(TAG, "processOutputState presentationTimeUs " + state.info.presentationTimeUs);
 			mMediaCodec.releaseOutputBuffer(state.outIndex, true);
 			return true;
 		}
@@ -165,9 +242,9 @@ public class VideoDecoder {
 			long presentationTimeUs = mMediaExtractor.getSampleTime();
 			int flags = mMediaExtractor.getSampleFlags();
 
-			Log.i(TAG, "sampleTime before " + mMediaExtractor.getSampleTime());
+			//Log.i(TAG, "sampleTime before " + mMediaExtractor.getSampleTime());
 			boolean EOS = !mMediaExtractor.advance();
-			Log.i(TAG, "sampleTime after " + mMediaExtractor.getSampleTime());
+			//Log.i(TAG, "sampleTime after " + mMediaExtractor.getSampleTime());
 			EOS |= (readSize <= 0);
 			EOS |= ((flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) > 0);
 			
@@ -201,5 +278,5 @@ public class VideoDecoder {
 			state.EOS = true;
 			//Log.i(TAG, "reach output EOS " + state.info.presentationTimeUs);
 		}
-	}
+	}*/
 }

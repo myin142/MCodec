@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity{
 	private static String hdHigh24 = videoFolder + "cats_with_timecode-1920x1080-24fps-baseline-14mpbs.mp4";
 
 	private static int startFrame = 0;
-	private static int endFrame = 200;
+	private static int endFrame = 500;
 
     @Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -41,17 +41,7 @@ public class MainActivity extends AppCompatActivity{
 		setContentView(R.layout.activity_main);
 
 		long startTime = System.currentTimeMillis();
-
-        FrameGrabber grab = new FrameGrabber();
-		grab.setDataSource(lowVideo);
-        grab.init();
-		Bitmap bm = grab.getFrameAtTime(1);
-		saveBitmap(bm, videoFolder + "test.jpg");
-		/*try {
-			decodeVideoSequence(hdLowVideo, startFrame, endFrame, false);
-		} catch (IOException | JCodecException e) {
-			e.printStackTrace();
-		}*/
+		decodeVideoSequence(hdLowVideo, startFrame, endFrame, false);
 		long endTime = System.currentTimeMillis();
 		long totalTime = (endTime - startTime) / 1000;
 
@@ -78,7 +68,7 @@ public class MainActivity extends AppCompatActivity{
 		grab.setDataSource(path);
 		grab.setTargetSize(width, height);
 		grab.init();
-		Bitmap bm = grab.getFrameAtTime(time);
+		Bitmap bm = grab.getFrameAt(0);
 		//grab.release();
 		return bm;
 	}
@@ -101,7 +91,6 @@ public class MainActivity extends AppCompatActivity{
 			String location = videoFolder + "frames/frame_"+i+".jpg";
 			saveBitmap(bmp, location);
 		}
-		grab.release();
 	}
 
 	void decodeVideoSequence(String filePath, int start, int end, int width, int height, boolean ffmpeg){
