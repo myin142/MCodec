@@ -66,7 +66,7 @@ public class VideoDecoder{
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         //decoder.setCallback(new DecodeCall());
                     }
-                    decoder.configure(format, outputSurface, null, 0);
+                    decoder.configure(format, new Surface(new SurfaceTexture(10001)), null, 0);
                     break;
                 }
             }
