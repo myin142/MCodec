@@ -17,8 +17,6 @@ import android.os.HandlerThread;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 
 import com.tam.gl.GLHelper;
 
@@ -30,7 +28,7 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
     private static String lowVideo = "cats_with_timecode-640x320-30fps-baseline-4mbps.mp4";
     private static String hdHigh24 = "cats_with_timecode-1920x1080-24fps-baseline-14mpbs.mp4";
 
-    private static final String SAMPLE = videoFolder + hdHighBase;
+    private static final String SAMPLE = videoFolder + hdHighVideo;
     private static String TAG = "DecodeActivity";
 
     private HandlerThread mGLThread = null;
@@ -41,15 +39,15 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
     private int mWidth = 1920;
     private int mHeight = 1080;
 
-    private final Object mWaitCodec = new Object();
+    private boolean processDone = false;
     private final Object mWaitFrame = new Object();
     private boolean mFrameAvailable = false;
 
     private SurfaceTexture sTexture = null;
+    private Surface surface = null;
     private int textureID;
 
-    private Decoder codec = null;
-    private Bitmap frame = null;
+    private int bitmapCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,45 +72,68 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
         textureID = mGLHelper.createOESTexture();
         sTexture = new SurfaceTexture(textureID);
         sTexture.setOnFrameAvailableListener(this);
-        final Surface surface = new Surface(sTexture);
+        surface = new Surface(sTexture);
 
-        // Start decoder
-        Log.d(TAG, "Initializing and Starting Decoder");
-        codec = new Decoder(surface);
-        codec.init();
+        mGLHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                // Start decoder
+                Log.d(TAG, "Initializing and Starting Decoder");
+                Decoder codec = new Decoder(surface);
+                codec.init();
 
-        // Get Frame at specified number
-        int frameNumber = 0;
-        Log.d(TAG, "Getting FrameNumber " + frameNumber);
-        frame = codec.getFrameAt(frameNumber);
+                // Get Frame at specified number
+                int frameNumber = 0;
+                int frameEnd = 10;
+                bitmapCount = 0;
+                int diff = frameEnd - frameNumber;
+                Log.d(TAG, "Getting FrameNumber " + frameNumber);
+                long startTime = System.currentTimeMillis();
+                codec.getFrameRange(frameNumber, frameEnd);
 
-        // Wait for Codec to finish
-        synchronized (mWaitCodec){
-            try {
-                mWaitCodec.wait();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+                Log.d(TAG, "BitmapCount: " + bitmapCount + ", Diff: " + diff);
+                while(bitmapCount < diff){
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                Log.d(TAG, "BitmapCount: " + bitmapCount + ", Diff: " + diff);
+
+                long endTime = System.currentTimeMillis();
+                long totalTime = (endTime - startTime) / 1000;
+
+                Log.d("Total Time", totalTime + "s");
+
+                // Release All
+                codec.release();
+                Log.d(TAG, "Cleaning Things up");
+                sTexture.release();
+                surface.release();
+                mGLHelper.release();
+                mGLThread.quit();
             }
-        }
+        });
 
-        Log.d(TAG, "Saving Bitmap");
-        saveBitmap(frame, videoFolder + "test/frame.jpg");
-
-        // Release All
-        Log.d(TAG, "Cleaning Things up");
-        sTexture.release();
-        surface.release();
-        codec.release();
-        mGLHelper.release();
-        mGLThread.quit();
     }
 
     @Override
     public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-        synchronized (mWaitFrame){
-            if(mFrameAvailable) throw new RuntimeException("Frame already available");
+        Log.d(TAG, "Frame available");
+
+        mGLHelper.drawFrame(sTexture, textureID);
+        Bitmap frame = mGLHelper.readPixels(mWidth, mHeight);
+
+        Log.d(TAG, "Saving Bitmap");
+        saveBitmap(frame, videoFolder + "test/frame"+bitmapCount+".jpg");
+        bitmapCount++;
+
+        synchronized (mWaitFrame) {
+            if (mFrameAvailable) {
+                throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
+            }
             mFrameAvailable = true;
-            Log.d(TAG, "OnFrameAvailable");
             mWaitFrame.notifyAll();
         }
     }
@@ -164,7 +185,7 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
             extractor.release();
         }
 
-        public Bitmap getFrameAt(int frame){
+        public void getFrameAt(int frame){
             BufferInfo info = new BufferInfo();
             long time = frame * getFrameRate();
             extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
@@ -190,34 +211,61 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                 }
 
                 int outputId = decoder.dequeueOutputBuffer(info, timeout);
+                Log.d(TAG, "Output: " + outputId);
                 if(outputId >= 0){
                     if(info.presentationTimeUs >= time) render = true;
                     decoder.releaseOutputBuffer(outputId, render);
                     if(render){
                         Log.d(TAG, "Released Render Output, InfoTime: " + info.presentationTimeUs);
-                        synchronized (mWaitFrame) {
-                            Log.d(TAG, "Wait for FrameAvailable");
-                            try {
-                                mWaitFrame.wait();
-                            } catch (InterruptedException ie) {
-                                throw new RuntimeException(ie);
-                            }
-                            mFrameAvailable = false;
-                            Log.d(TAG, "Frame is Available");
-                        }
-
-                        Log.d(TAG, "After FrameAvailable - Returning Bitmap");
-                        mGLHelper.drawFrame(sTexture, textureID);
-                        synchronized (mWaitCodec){
-                            Log.d(TAG, "Codec Process Done");
-                            mWaitCodec.notifyAll();
-                        }
-                        return mGLHelper.readPixels(mWidth, mHeight);
                     }
                 }
             }
+        }
 
-            return null;
+        public void getFrameRange(int start, int end){
+            BufferInfo info = new BufferInfo();
+            long time = start * getFrameRate();
+            extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+
+            for(int i = start; i <= end; i++) {
+                boolean render = false;
+                while (!render) {
+                    int inputId = decoder.dequeueInputBuffer(timeout);
+                    if (inputId >= 0) {
+                        ByteBuffer buffer = decoder.getInputBuffer(inputId);
+                        int sample = 0;
+                        if (buffer != null) {
+                            sample = extractor.readSampleData(buffer, 0);
+                        }
+                        long presentationTime = extractor.getSampleTime();
+
+                        if (sample < 0) {
+                            decoder.queueInputBuffer(inputId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        } else {
+                            decoder.queueInputBuffer(inputId, 0, sample, presentationTime, 0);
+                            extractor.advance();
+                        }
+
+                    }
+
+                    int outputId = decoder.dequeueOutputBuffer(info, timeout);
+                    if (outputId >= 0) {
+                        if (info.presentationTimeUs >= time) render = true;
+                        decoder.releaseOutputBuffer(outputId, render);
+                        if (render) {
+                            Log.d(TAG, "Released Render Output, InfoTime: " + info.presentationTimeUs);
+                            synchronized (mWaitFrame) {
+                                try {
+                                    mWaitFrame.wait();
+                                } catch (InterruptedException ie) {
+                                    throw new RuntimeException(ie);
+                                }
+                                mFrameAvailable = false;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         public int getFrameRate(){
@@ -238,20 +286,6 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
             return result;
         }
 
-    }
-
-    private class CodecSurface implements SurfaceTexture.OnFrameAvailableListener{
-
-        @Override
-        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-            synchronized (mWaitFrame) {
-                if (mFrameAvailable) {
-                    throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
-                }
-                mFrameAvailable = true;
-                mWaitFrame.notifyAll();
-            }
-        }
     }
 
     void saveBitmap(Bitmap bm, String location){
