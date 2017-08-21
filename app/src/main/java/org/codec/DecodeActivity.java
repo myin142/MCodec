@@ -18,7 +18,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
 
-import com.tam.gl.GLHelper;
+import org.codec.gl.GLHelper;
 
 public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.OnFrameAvailableListener{
     private static String videoFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/videos/";

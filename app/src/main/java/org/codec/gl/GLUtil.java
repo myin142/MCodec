@@ -1,4 +1,4 @@
-package com.tam.gl;
+package org.codec.gl;
 
 import android.opengl.EGL14;
 import android.util.Log;
