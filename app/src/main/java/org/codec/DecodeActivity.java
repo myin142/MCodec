@@ -79,18 +79,15 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                 // Start decoder
                 Log.d(TAG, "Initializing and Starting Decoder");
                 Decoder codec = new Decoder(surface);
-                codec.init();
+                codec.setSource(SAMPLE);
+                codec.startDecoder();
 
                 // Get Frame at specified number
                 int frameNumber = 0;
-                int frameEnd = 500;
                 Log.d(TAG, "Getting FrameNumber " + frameNumber);
                 long startTime = System.currentTimeMillis();
-                //codec.getFrameAt(frameNumber);
                 codec.seekTo(frameNumber);
-                for(int i = frameNumber; i <= frameEnd; i++){
-                    codec.getFrameAt(i);
-                }
+                codec.getFrameAt(frameNumber);
                 long endTime = System.currentTimeMillis();
                 long totalTime = (endTime - startTime) / 1000;
 
@@ -132,22 +129,54 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
     }
 
     private class Decoder{
-        private MediaExtractor extractor;
-        private MediaCodec decoder;
-        private Surface surface;
-        private BufferInfo info;
+        private MediaExtractor extractor = null;
+        private MediaCodec decoder = null;
+        private Surface surface = null;
+        private BufferInfo info = null;
 
+        private String source = "";
         private int timeout = 10000;
         private final Object mWaitProcess = new Object();
 
-        public Decoder(Surface surface) {
+        public Decoder(Surface surface){
             this.surface = surface;
         }
 
-        public void init(){
+        public void setSource(String path){
+            source = path;
+        }
+        public void setSurface(Surface surface){
+            this.surface = surface;
+        }
+
+        public String getSource(){
+            return source;
+        }
+        public Surface getSurface(){
+            return surface;
+        }
+        public int getFrameRate(){
+            int frameRate = 24; //may be default
+            int numTracks = extractor.getTrackCount();
+            for (int i = 0; i < numTracks; ++i) {
+                MediaFormat format = extractor.getTrackFormat(i);
+                String mime = format.getString(MediaFormat.KEY_MIME);
+                if (mime.startsWith("video/")) {
+                    if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                        frameRate = format.getInteger(MediaFormat.KEY_FRAME_RATE);
+                    }
+                }
+            }
+
+            int result = (int)((1f / frameRate) * 1000 * 1000);
+
+            return result;
+        }
+
+        public void startDecoder(){
             extractor = new MediaExtractor();
             try {
-                extractor.setDataSource(SAMPLE);
+                extractor.setDataSource(source);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -167,10 +196,7 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                 }
             }
 
-            if (decoder == null) {
-                Log.e("DecodeActivity", "Can't find video info!");
-                return;
-            }
+            if(decoder == null) throw new IllegalStateException("Decoder not set");
 
             decoder.start();
         }
@@ -212,24 +238,6 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                     if (render) awaitFrame();
                 }
             }
-        }
-
-        public int getFrameRate(){
-            int frameRate = 24; //may be default
-            int numTracks = extractor.getTrackCount();
-            for (int i = 0; i < numTracks; ++i) {
-                MediaFormat format = extractor.getTrackFormat(i);
-                String mime = format.getString(MediaFormat.KEY_MIME);
-                if (mime.startsWith("video/")) {
-                    if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
-                        frameRate = format.getInteger(MediaFormat.KEY_FRAME_RATE);
-                    }
-                }
-            }
-
-            int result = (int)((1f / frameRate) * 1000 * 1000);
-
-            return result;
         }
 
         public void awaitProcess(){
