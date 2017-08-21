@@ -8,9 +8,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.tam.media.FrameGrabber;
-//import com.tam.media.VideoDecoder;
 
-import org.codec.media.VideoDecoder;
 import org.jcodec.api.JCodecException;
 import org.jcodec.api.android.AndroidFrameGrab;
 import org.jcodec.common.RunLength;

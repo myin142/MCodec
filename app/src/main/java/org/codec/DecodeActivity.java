@@ -84,23 +84,9 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
 
                 // Get Frame at specified number
                 int frameNumber = 0;
-                int frameEnd = 10;
-                bitmapCount = 0;
-                int diff = frameEnd - frameNumber;
                 Log.d(TAG, "Getting FrameNumber " + frameNumber);
                 long startTime = System.currentTimeMillis();
-                codec.getFrameRange(frameNumber, frameEnd);
-
-                Log.d(TAG, "BitmapCount: " + bitmapCount + ", Diff: " + diff);
-                while(bitmapCount < diff){
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                Log.d(TAG, "BitmapCount: " + bitmapCount + ", Diff: " + diff);
-
+                codec.getFrameAt(frameNumber);
                 long endTime = System.currentTimeMillis();
                 long totalTime = (endTime - startTime) / 1000;
 
@@ -109,10 +95,6 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                 // Release All
                 codec.release();
                 Log.d(TAG, "Cleaning Things up");
-                sTexture.release();
-                surface.release();
-                mGLHelper.release();
-                mGLThread.quit();
             }
         });
 
@@ -138,12 +120,21 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
         }
     }
 
+    public void release(){
+        sTexture.release();
+        surface.release();
+        mGLHelper.release();
+        mGLThread.quit();
+    }
+
     private class Decoder{
         private MediaExtractor extractor;
         private MediaCodec decoder;
         private Surface surface;
+        private BufferInfo info;
 
         private int timeout = 10000;
+        private final Object mWaitProcess = new Object();
 
         public Decoder(Surface surface) {
             this.surface = surface;
@@ -186,24 +177,30 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
         }
 
         public void getFrameAt(int frame){
-            BufferInfo info = new BufferInfo();
+            seekTo(frame);
+            decodeFrameAt(frame);
+            processDone();
+        }
+
+        public void seekTo(int frame){
+            info = new BufferInfo();
             long time = frame * getFrameRate();
             extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+        }
 
+        public void decodeFrameAt(int frame){
+            long time = frame * getFrameRate();
             boolean render = false;
-            while(!render){
+            while (!render) {
                 int inputId = decoder.dequeueInputBuffer(timeout);
-                if(inputId >= 0){
+                if (inputId >= 0) {
                     ByteBuffer buffer = decoder.getInputBuffer(inputId);
-                    int sample = 0;
-                    if (buffer != null) {
-                        sample = extractor.readSampleData(buffer, 0);
-                    }
+                    int sample = extractor.readSampleData(buffer, 0);
                     long presentationTime = extractor.getSampleTime();
 
-                    if(sample < 0){
+                    if (sample < 0) {
                         decoder.queueInputBuffer(inputId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                    }else{
+                    } else {
                         decoder.queueInputBuffer(inputId, 0, sample, presentationTime, 0);
                         extractor.advance();
                     }
@@ -211,59 +208,10 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                 }
 
                 int outputId = decoder.dequeueOutputBuffer(info, timeout);
-                Log.d(TAG, "Output: " + outputId);
-                if(outputId >= 0){
-                    if(info.presentationTimeUs >= time) render = true;
+                if (outputId >= 0) {
+                    if (info.presentationTimeUs >= time) render = true;
                     decoder.releaseOutputBuffer(outputId, render);
-                    if(render){
-                        Log.d(TAG, "Released Render Output, InfoTime: " + info.presentationTimeUs);
-                    }
-                }
-            }
-        }
-
-        public void getFrameRange(int start, int end){
-            BufferInfo info = new BufferInfo();
-            long time = start * getFrameRate();
-            extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-
-            for(int i = start; i <= end; i++) {
-                boolean render = false;
-                while (!render) {
-                    int inputId = decoder.dequeueInputBuffer(timeout);
-                    if (inputId >= 0) {
-                        ByteBuffer buffer = decoder.getInputBuffer(inputId);
-                        int sample = 0;
-                        if (buffer != null) {
-                            sample = extractor.readSampleData(buffer, 0);
-                        }
-                        long presentationTime = extractor.getSampleTime();
-
-                        if (sample < 0) {
-                            decoder.queueInputBuffer(inputId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                        } else {
-                            decoder.queueInputBuffer(inputId, 0, sample, presentationTime, 0);
-                            extractor.advance();
-                        }
-
-                    }
-
-                    int outputId = decoder.dequeueOutputBuffer(info, timeout);
-                    if (outputId >= 0) {
-                        if (info.presentationTimeUs >= time) render = true;
-                        decoder.releaseOutputBuffer(outputId, render);
-                        if (render) {
-                            Log.d(TAG, "Released Render Output, InfoTime: " + info.presentationTimeUs);
-                            synchronized (mWaitFrame) {
-                                try {
-                                    mWaitFrame.wait();
-                                } catch (InterruptedException ie) {
-                                    throw new RuntimeException(ie);
-                                }
-                                mFrameAvailable = false;
-                            }
-                        }
-                    }
+                    if (render) awaitFrame();
                 }
             }
         }
@@ -286,9 +234,36 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
             return result;
         }
 
+        public void awaitProcess(){
+           synchronized (mWaitProcess){
+               try {
+                   mWaitProcess.wait();
+               } catch (InterruptedException e) {
+                   e.printStackTrace();
+               }
+           }
+        }
+
+        public void processDone(){
+            synchronized (mWaitProcess){
+                mWaitProcess.notifyAll();
+            }
+        }
+
     }
 
-    void saveBitmap(Bitmap bm, String location){
+    public void awaitFrame(){
+        synchronized (mWaitFrame) {
+            try {
+                mWaitFrame.wait();
+            } catch (InterruptedException ie) {
+                throw new RuntimeException(ie);
+            }
+            mFrameAvailable = false;
+        }
+    }
+
+    public void saveBitmap(Bitmap bm, String location){
         try {
             FileOutputStream out = new FileOutputStream(location);
             bm.compress(Bitmap.CompressFormat.JPEG, 100, out);
