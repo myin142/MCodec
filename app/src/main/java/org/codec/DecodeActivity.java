@@ -19,8 +19,9 @@ import android.util.Log;
 import android.view.Surface;
 
 import org.codec.gl.GLHelper;
+import org.jcodec.common.VideoDecoder;
 
-public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.OnFrameAvailableListener{
+public class DecodeActivity extends AppCompatActivity{
     private static String videoFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/videos/";
     private static String hdLowVideo = "cats_with_timecode-1920x1080-30fps-baseline-4mbps.mp4";
     private static String hdHighVideo = "cats_with_timecode-1920x1080-30fps-main-14mbps.mp4";
@@ -28,25 +29,13 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
     private static String lowVideo = "cats_with_timecode-640x320-30fps-baseline-4mbps.mp4";
     private static String hdHigh24 = "cats_with_timecode-1920x1080-24fps-baseline-14mpbs.mp4";
 
-    private static final String SAMPLE = videoFolder + hdHighBase;
+    private static final String SAMPLE = videoFolder + lowVideo;
     private static String TAG = "DecodeActivity";
 
     private HandlerThread mGLThread = null;
     private Handler mGLHandler = null;
-    private GLHelper mGLHelper = null;
-
-    private int mDefaultTextureID = 10001;
-    private int mWidth = 1920;
-    private int mHeight = 1080;
-
-    private final Object mWaitFrame = new Object();
-    private boolean mFrameAvailable = false;
-
-    private SurfaceTexture sTexture = null;
-    private Surface surface = null;
-    private int textureID;
-
-    private int bitmapCount = 0;
+    private Decoder codec = null;
+    private CodecOutput output = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,26 +48,14 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
         mGLThread.start();
         mGLHandler = new Handler(mGLThread.getLooper());
 
-        // Create GLHelper
-        Log.d(TAG, "Create GLHelper");
-        mGLHelper = new GLHelper();
-        SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
-        st.setDefaultBufferSize(mWidth, mHeight);
-        mGLHelper.init(st);
-
-        // Create Surface for Codec
-        Log.d(TAG, "Create Surface for Decoder");
-        textureID = mGLHelper.createOESTexture();
-        sTexture = new SurfaceTexture(textureID);
-        sTexture.setOnFrameAvailableListener(this);
-        surface = new Surface(sTexture);
+        output = new CodecOutput();
 
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
                 // Start decoder
                 Log.d(TAG, "Initializing and Starting Decoder");
-                Decoder codec = new Decoder(surface);
+                Decoder codec = new Decoder(output.getSurface());
                 codec.setSource(SAMPLE);
                 codec.startDecoder();
 
@@ -101,30 +78,9 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
 
     }
 
-    @Override
-    public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-        Log.d(TAG, "Frame available");
-
-        mGLHelper.drawFrame(sTexture, textureID);
-        Bitmap frame = mGLHelper.readPixels(mWidth, mHeight);
-
-        Log.d(TAG, "Saving Bitmap");
-        saveBitmap(frame, videoFolder + "test/frame"+bitmapCount+".jpg");
-        bitmapCount++;
-
-        synchronized (mWaitFrame) {
-            if (mFrameAvailable) {
-                throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
-            }
-            mFrameAvailable = true;
-            mWaitFrame.notifyAll();
-        }
-    }
-
     public void release(){
-        sTexture.release();
-        surface.release();
-        mGLHelper.release();
+        output.release();
+        codec.release();
         mGLThread.quit();
     }
 
@@ -235,7 +191,7 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
                 if (outputId >= 0) {
                     if (info.presentationTimeUs >= time) render = true;
                     decoder.releaseOutputBuffer(outputId, render);
-                    if (render) awaitFrame();
+                    if (render) CodecOutput.awaitFrame();
                 }
             }
         }
@@ -258,24 +214,87 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
 
     }
 
-    public void awaitFrame(){
-        synchronized (mWaitFrame) {
-            try {
-                mWaitFrame.wait();
-            } catch (InterruptedException ie) {
-                throw new RuntimeException(ie);
+    private static class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
+        private GLHelper mGLHelper = null;
+
+        private int mDefaultTextureID = 10001;
+        private int mWidth = 640;
+        private int mHeight = 360;
+
+        private static final Object mWaitFrame = new Object();
+        private static boolean mFrameAvailable = false;
+
+        private SurfaceTexture sTexture = null;
+        private Surface surface = null;
+        private int textureID;
+
+        public CodecOutput(){
+            // Create GLHelper
+            Log.d(TAG, "Create GLHelper");
+            mGLHelper = new GLHelper();
+            SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
+            st.setDefaultBufferSize(mWidth, mHeight);
+            mGLHelper.init(st);
+
+            // Create Surface for Codec
+            Log.d(TAG, "Create Surface for Decoder");
+            textureID = mGLHelper.createOESTexture();
+            sTexture = new SurfaceTexture(textureID);
+            sTexture.setOnFrameAvailableListener(this);
+            surface = new Surface(sTexture);
+
+        }
+
+        public Surface getSurface(){
+            return surface;
+        }
+
+        public static void awaitFrame(){
+            synchronized (mWaitFrame) {
+                try {
+                    mWaitFrame.wait();
+                } catch (InterruptedException ie) {
+                    throw new RuntimeException(ie);
+                }
+                mFrameAvailable = false;
             }
-            mFrameAvailable = false;
+        }
+
+        @Override
+        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+            Log.d(TAG, "Frame available");
+
+            mGLHelper.drawFrame(sTexture, textureID);
+            Bitmap frame = mGLHelper.readPixels(mWidth, mHeight);
+
+            Log.d(TAG, "Saving Bitmap");
+            saveBitmap(frame, videoFolder + "test/frame0");
+
+            synchronized (mWaitFrame) {
+                if (mFrameAvailable) {
+                    throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
+                }
+                mFrameAvailable = true;
+                mWaitFrame.notifyAll();
+            }
+        }
+
+        public void release(){
+            sTexture.release();
+            surface.release();
+            mGLHelper.release();
+        }
+
+        public void saveBitmap(Bitmap bm, String location){
+            try {
+                FileOutputStream out = new FileOutputStream(location);
+                bm.compress(Bitmap.CompressFormat.JPEG, 100, out);
+                out.close();
+            }catch(IOException e){
+                e.printStackTrace();
+            }
         }
     }
 
-    public void saveBitmap(Bitmap bm, String location){
-        try {
-            FileOutputStream out = new FileOutputStream(location);
-            bm.compress(Bitmap.CompressFormat.JPEG, 100, out);
-            out.close();
-        }catch(IOException e){
-            e.printStackTrace();
-        }
-    }
+
 }
