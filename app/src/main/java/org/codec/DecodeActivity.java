@@ -55,7 +55,7 @@ public class DecodeActivity extends AppCompatActivity{
             public void run() {
                 // Start decoder
                 Log.d(TAG, "Initializing and Starting Decoder");
-                Decoder codec = new Decoder(output.getSurface());
+                codec = new Decoder(output.getSurface());
                 codec.setSource(SAMPLE);
                 codec.startDecoder();
 
@@ -65,14 +65,14 @@ public class DecodeActivity extends AppCompatActivity{
                 long startTime = System.currentTimeMillis();
                 codec.seekTo(frameNumber);
                 codec.getFrameAt(frameNumber);
+                output.saveBitmap(videoFolder + "test.jpg");
                 long endTime = System.currentTimeMillis();
                 long totalTime = (endTime - startTime) / 1000;
 
                 Log.d("Total Time", totalTime + "s");
 
-                // Release All
-                codec.release();
-                Log.d(TAG, "Cleaning Things up");
+                Log.d(TAG, "Cleaning things up");
+                release();
             }
         });
 
@@ -92,7 +92,6 @@ public class DecodeActivity extends AppCompatActivity{
 
         private String source = "";
         private int timeout = 10000;
-        private final Object mWaitProcess = new Object();
 
         public Decoder(Surface surface){
             this.surface = surface;
@@ -154,6 +153,7 @@ public class DecodeActivity extends AppCompatActivity{
 
             if(decoder == null) throw new IllegalStateException("Decoder not set");
 
+            Log.d(TAG, "Decoder Starting");
             decoder.start();
         }
         public void release(){
@@ -191,24 +191,11 @@ public class DecodeActivity extends AppCompatActivity{
                 if (outputId >= 0) {
                     if (info.presentationTimeUs >= time) render = true;
                     decoder.releaseOutputBuffer(outputId, render);
-                    if (render) CodecOutput.awaitFrame();
+                    if (render){
+                        Log.d(TAG, "Awaiting Frame");
+                        CodecOutput.awaitFrame();
+                    }
                 }
-            }
-        }
-
-        public void awaitProcess(){
-           synchronized (mWaitProcess){
-               try {
-                   mWaitProcess.wait();
-               } catch (InterruptedException e) {
-                   e.printStackTrace();
-               }
-           }
-        }
-
-        public void processDone(){
-            synchronized (mWaitProcess){
-                mWaitProcess.notifyAll();
             }
         }
 
@@ -227,6 +214,8 @@ public class DecodeActivity extends AppCompatActivity{
         private SurfaceTexture sTexture = null;
         private Surface surface = null;
         private int textureID;
+
+        private Bitmap frame = null;
 
         public CodecOutput(){
             // Create GLHelper
@@ -265,10 +254,7 @@ public class DecodeActivity extends AppCompatActivity{
             Log.d(TAG, "Frame available");
 
             mGLHelper.drawFrame(sTexture, textureID);
-            Bitmap frame = mGLHelper.readPixels(mWidth, mHeight);
-
-            Log.d(TAG, "Saving Bitmap");
-            saveBitmap(frame, videoFolder + "test/frame0");
+            frame = mGLHelper.readPixels(mWidth, mHeight);
 
             synchronized (mWaitFrame) {
                 if (mFrameAvailable) {
@@ -285,10 +271,10 @@ public class DecodeActivity extends AppCompatActivity{
             mGLHelper.release();
         }
 
-        public void saveBitmap(Bitmap bm, String location){
+        public void saveBitmap(String location){
             try {
                 FileOutputStream out = new FileOutputStream(location);
-                bm.compress(Bitmap.CompressFormat.JPEG, 100, out);
+                frame.compress(Bitmap.CompressFormat.JPEG, 100, out);
                 out.close();
             }catch(IOException e){
                 e.printStackTrace();
