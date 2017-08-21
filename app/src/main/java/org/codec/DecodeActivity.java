@@ -28,7 +28,7 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
     private static String lowVideo = "cats_with_timecode-640x320-30fps-baseline-4mbps.mp4";
     private static String hdHigh24 = "cats_with_timecode-1920x1080-24fps-baseline-14mpbs.mp4";
 
-    private static final String SAMPLE = videoFolder + hdHighVideo;
+    private static final String SAMPLE = videoFolder + hdHighBase;
     private static String TAG = "DecodeActivity";
 
     private HandlerThread mGLThread = null;
@@ -39,7 +39,6 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
     private int mWidth = 1920;
     private int mHeight = 1080;
 
-    private boolean processDone = false;
     private final Object mWaitFrame = new Object();
     private boolean mFrameAvailable = false;
 
@@ -84,9 +83,14 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
 
                 // Get Frame at specified number
                 int frameNumber = 0;
+                int frameEnd = 500;
                 Log.d(TAG, "Getting FrameNumber " + frameNumber);
                 long startTime = System.currentTimeMillis();
-                codec.getFrameAt(frameNumber);
+                //codec.getFrameAt(frameNumber);
+                codec.seekTo(frameNumber);
+                for(int i = frameNumber; i <= frameEnd; i++){
+                    codec.getFrameAt(i);
+                }
                 long endTime = System.currentTimeMillis();
                 long totalTime = (endTime - startTime) / 1000;
 
@@ -176,19 +180,13 @@ public class DecodeActivity extends AppCompatActivity implements SurfaceTexture.
             extractor.release();
         }
 
-        public void getFrameAt(int frame){
-            seekTo(frame);
-            decodeFrameAt(frame);
-            processDone();
-        }
-
         public void seekTo(int frame){
             info = new BufferInfo();
             long time = frame * getFrameRate();
             extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
         }
 
-        public void decodeFrameAt(int frame){
+        public void getFrameAt(int frame){
             long time = frame * getFrameRate();
             boolean render = false;
             while (!render) {
