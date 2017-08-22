@@ -19,6 +19,8 @@ import android.util.Log;
 import android.view.Surface;
 
 import org.codec.gl.GLHelper;
+import org.codec.media.CodecOutput;
+import org.codec.media.VideoDecoder;
 
 public class DecodeActivity extends AppCompatActivity{
     private static String videoFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/videos/";
@@ -33,7 +35,7 @@ public class DecodeActivity extends AppCompatActivity{
 
     private HandlerThread mGLThread = null;
     private Handler mGLHandler = null;
-    private Decoder codec = null;
+    private VideoDecoder codec = null;
     private CodecOutput output = null;
 
     private int width = -1;
@@ -53,7 +55,7 @@ public class DecodeActivity extends AppCompatActivity{
         output = new CodecOutput();
         setTargetSize(1920,1080);
 
-        codec = new Decoder();
+        codec = new VideoDecoder();
         codec.setSource(SAMPLE);
         codec.init();
 
@@ -110,220 +112,7 @@ public class DecodeActivity extends AppCompatActivity{
         mGLThread.quit();
     }
 
-    private class Decoder{
-        private MediaExtractor extractor = null;
-        private MediaFormat format = null;
-        private MediaCodec decoder = null;
-        private Surface surface = null;
-        private BufferInfo info = null;
 
-        private String source = "";
-        private int timeout = 10000;
-
-        public void setSource(String path){
-            source = path;
-        }
-        public void setSurface(Surface surface){
-            this.surface = surface;
-        }
-
-        public String getSource(){
-            return source;
-        }
-        public Surface getSurface(){
-            return surface;
-        }
-        public int getFrameRate(){
-            int frameRate = 24; //may be default
-            int numTracks = extractor.getTrackCount();
-            for (int i = 0; i < numTracks; ++i) {
-                MediaFormat format = extractor.getTrackFormat(i);
-                String mime = format.getString(MediaFormat.KEY_MIME);
-                if (mime.startsWith("video/")) {
-                    if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
-                        frameRate = format.getInteger(MediaFormat.KEY_FRAME_RATE);
-                    }
-                }
-            }
-
-            int result = (int)((1f / frameRate) * 1000 * 1000);
-
-            return result;
-        }
-
-        // Callable after init()
-        public int getWidth(){
-            return format.getInteger(MediaFormat.KEY_WIDTH);
-        }
-        public int getHeight(){ return format.getInteger(MediaFormat.KEY_HEIGHT); }
-
-        public void release(){
-            decoder.stop();
-            decoder.release();
-            extractor.release();
-        }
-
-        // Source has to be set
-        public void init(){
-            extractor = new MediaExtractor();
-            try {
-                extractor.setDataSource(source);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            for (int i = 0; i < extractor.getTrackCount(); i++) {
-                format = extractor.getTrackFormat(i);
-                String mime = format.getString(MediaFormat.KEY_MIME);
-                if (mime.startsWith("video/")) {
-                    extractor.selectTrack(i);
-                    break;
-                }
-            }
-        }
-
-        // Surface has to be set, and after init()
-        public void startDecoder(){
-            String mime = format.getString(MediaFormat.KEY_MIME);
-            try {
-                decoder = MediaCodec.createDecoderByType(mime);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            decoder.configure(format, surface, null, 0);
-
-            Log.d(TAG, "Decoder Starting");
-            decoder.start();
-        }
-
-        public void seekTo(int frame){
-            info = new BufferInfo();
-            long time = frame * getFrameRate();
-            extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-        }
-
-        public void getFrameAt(int frame){
-            long time = frame * getFrameRate();
-            boolean render = false;
-            while (!render) {
-                int inputId = decoder.dequeueInputBuffer(timeout);
-                if (inputId >= 0) {
-                    ByteBuffer buffer = decoder.getInputBuffer(inputId);
-                    int sample = extractor.readSampleData(buffer, 0);
-                    long presentationTime = extractor.getSampleTime();
-
-                    if (sample < 0) {
-                        decoder.queueInputBuffer(inputId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                    } else {
-                        decoder.queueInputBuffer(inputId, 0, sample, presentationTime, 0);
-                        extractor.advance();
-                    }
-
-                }
-
-                int outputId = decoder.dequeueOutputBuffer(info, timeout);
-                if (outputId >= 0) {
-                    if (info.presentationTimeUs >= time) render = true;
-                    decoder.releaseOutputBuffer(outputId, render);
-                    if (render){
-                        Log.d(TAG, "Awaiting Frame");
-                        CodecOutput.awaitFrame();
-                    }
-                }
-            }
-        }
-
-    }
-
-    private static class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
-        private GLHelper mGLHelper = null;
-
-        private int mDefaultTextureID = 10001;
-        private int mWidth = 640;
-        private int mHeight = 360;
-
-        private static final Object mWaitFrame = new Object();
-        private static boolean mFrameAvailable = false;
-
-        private SurfaceTexture sTexture = null;
-        private Surface surface = null;
-        private int textureID;
-
-        private Bitmap frame = null;
-
-        public void init(){
-            // Create GLHelper
-            Log.d(TAG, "Create GLHelper");
-            mGLHelper = new GLHelper();
-            SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
-            st.setDefaultBufferSize(mWidth, mHeight);
-            mGLHelper.init(st);
-
-            // Create Surface for Codec
-            Log.d(TAG, "Create Surface for Decoder");
-            textureID = mGLHelper.createOESTexture();
-            sTexture = new SurfaceTexture(textureID);
-            sTexture.setOnFrameAvailableListener(this);
-            surface = new Surface(sTexture);
-        }
-
-        public void setWidth(int width){
-            mWidth = width;
-        }
-        public void setHeight(int height){
-            mHeight = height;
-        }
-        public Surface getSurface(){
-            return surface;
-        }
-
-        public static void awaitFrame(){
-            synchronized (mWaitFrame) {
-                try {
-                    mWaitFrame.wait();
-                } catch (InterruptedException ie) {
-                    throw new RuntimeException(ie);
-                }
-                mFrameAvailable = false;
-            }
-        }
-
-        @Override
-        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-            Log.d(TAG, "Frame available");
-
-            mGLHelper.drawFrame(sTexture, textureID);
-            frame = mGLHelper.readPixels(mWidth, mHeight);
-            frameProcessed();
-        }
-
-        public void frameProcessed(){
-            synchronized (mWaitFrame) {
-                if (mFrameAvailable) {
-                    throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
-                }
-                mFrameAvailable = true;
-                mWaitFrame.notifyAll();
-            }
-        }
-
-        public void release(){
-            sTexture.release();
-            surface.release();
-            mGLHelper.release();
-        }
-
-        public void saveBitmap(String location){
-            Log.d(TAG, "Frame saved");
-            try {
-                FileOutputStream out = new FileOutputStream(location);
-                frame.compress(Bitmap.CompressFormat.JPEG, 100, out);
-                out.close();
-            }catch(IOException e){
-                e.printStackTrace();
-            }
-        }
-    }
 
 
 }
