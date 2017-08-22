@@ -19,7 +19,6 @@ import android.util.Log;
 import android.view.Surface;
 
 import org.codec.gl.GLHelper;
-import org.jcodec.common.VideoDecoder;
 
 public class DecodeActivity extends AppCompatActivity{
     private static String videoFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + "/videos/";
@@ -37,6 +36,9 @@ public class DecodeActivity extends AppCompatActivity{
     private Decoder codec = null;
     private CodecOutput output = null;
 
+    private int width = -1;
+    private int height = -1;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,33 +51,57 @@ public class DecodeActivity extends AppCompatActivity{
         mGLHandler = new Handler(mGLThread.getLooper());
 
         output = new CodecOutput();
+        setTargetSize(1920,1080);
+
+        codec = new Decoder();
+        codec.setSource(SAMPLE);
+        codec.init();
+
+        if(width != -1){
+            output.setWidth(width);
+            output.setHeight(height);
+        }else{
+            output.setWidth(codec.getWidth());
+            output.setHeight(codec.getHeight());
+        }
+
+        output.init();
+        codec.setSurface(output.getSurface());
+        codec.startDecoder();
 
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
                 // Start decoder
                 Log.d(TAG, "Initializing and Starting Decoder");
-                codec = new Decoder(output.getSurface());
-                codec.setSource(SAMPLE);
-                codec.startDecoder();
 
                 // Get Frame at specified number
                 int frameNumber = 0;
                 Log.d(TAG, "Getting FrameNumber " + frameNumber);
                 long startTime = System.currentTimeMillis();
                 codec.seekTo(frameNumber);
-                codec.getFrameAt(frameNumber);
-                output.saveBitmap(videoFolder + "test.jpg");
+                codec.getFrameAt(frameNumber); // Has to be in a different thread than framelistener
+                output.saveBitmap(videoFolder + "test01.jpg");
                 long endTime = System.currentTimeMillis();
                 long totalTime = (endTime - startTime) / 1000;
 
                 Log.d("Total Time", totalTime + "s");
 
+                try {
+                    Thread.sleep(100000);
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
                 Log.d(TAG, "Cleaning things up");
                 release();
             }
         });
 
+    }
+
+    public void setTargetSize(int width, int height){
+        this.width = width;
+        this.height = height;
     }
 
     public void release(){
@@ -86,16 +112,13 @@ public class DecodeActivity extends AppCompatActivity{
 
     private class Decoder{
         private MediaExtractor extractor = null;
+        private MediaFormat format = null;
         private MediaCodec decoder = null;
         private Surface surface = null;
         private BufferInfo info = null;
 
         private String source = "";
         private int timeout = 10000;
-
-        public Decoder(Surface surface){
-            this.surface = surface;
-        }
 
         public void setSource(String path){
             source = path;
@@ -128,7 +151,20 @@ public class DecodeActivity extends AppCompatActivity{
             return result;
         }
 
-        public void startDecoder(){
+        // Callable after init()
+        public int getWidth(){
+            return format.getInteger(MediaFormat.KEY_WIDTH);
+        }
+        public int getHeight(){ return format.getInteger(MediaFormat.KEY_HEIGHT); }
+
+        public void release(){
+            decoder.stop();
+            decoder.release();
+            extractor.release();
+        }
+
+        // Source has to be set
+        public void init(){
             extractor = new MediaExtractor();
             try {
                 extractor.setDataSource(source);
@@ -137,29 +173,27 @@ public class DecodeActivity extends AppCompatActivity{
             }
 
             for (int i = 0; i < extractor.getTrackCount(); i++) {
-                MediaFormat format = extractor.getTrackFormat(i);
+                format = extractor.getTrackFormat(i);
                 String mime = format.getString(MediaFormat.KEY_MIME);
                 if (mime.startsWith("video/")) {
                     extractor.selectTrack(i);
-                    try {
-                        decoder = MediaCodec.createDecoderByType(mime);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    decoder.configure(format, surface, null, 0);
                     break;
                 }
             }
+        }
 
-            if(decoder == null) throw new IllegalStateException("Decoder not set");
+        // Surface has to be set, and after init()
+        public void startDecoder(){
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            try {
+                decoder = MediaCodec.createDecoderByType(mime);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            decoder.configure(format, surface, null, 0);
 
             Log.d(TAG, "Decoder Starting");
             decoder.start();
-        }
-        public void release(){
-            decoder.stop();
-            decoder.release();
-            extractor.release();
         }
 
         public void seekTo(int frame){
@@ -217,7 +251,7 @@ public class DecodeActivity extends AppCompatActivity{
 
         private Bitmap frame = null;
 
-        public CodecOutput(){
+        public void init(){
             // Create GLHelper
             Log.d(TAG, "Create GLHelper");
             mGLHelper = new GLHelper();
@@ -231,9 +265,14 @@ public class DecodeActivity extends AppCompatActivity{
             sTexture = new SurfaceTexture(textureID);
             sTexture.setOnFrameAvailableListener(this);
             surface = new Surface(sTexture);
-
         }
 
+        public void setWidth(int width){
+            mWidth = width;
+        }
+        public void setHeight(int height){
+            mHeight = height;
+        }
         public Surface getSurface(){
             return surface;
         }
@@ -255,7 +294,10 @@ public class DecodeActivity extends AppCompatActivity{
 
             mGLHelper.drawFrame(sTexture, textureID);
             frame = mGLHelper.readPixels(mWidth, mHeight);
+            frameProcessed();
+        }
 
+        public void frameProcessed(){
             synchronized (mWaitFrame) {
                 if (mFrameAvailable) {
                     throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
@@ -272,6 +314,7 @@ public class DecodeActivity extends AppCompatActivity{
         }
 
         public void saveBitmap(String location){
+            Log.d(TAG, "Frame saved");
             try {
                 FileOutputStream out = new FileOutputStream(location);
                 frame.compress(Bitmap.CompressFormat.JPEG, 100, out);
