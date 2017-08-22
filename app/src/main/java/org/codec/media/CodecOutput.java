@@ -7,9 +7,6 @@ import android.view.Surface;
 
 import org.codec.gl.GLHelper;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-
 public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     String TAG = "CodecOutput";
 
