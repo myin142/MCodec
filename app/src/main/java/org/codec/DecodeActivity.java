@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 
 import org.codec.media.FrameGrab;
 
@@ -27,8 +28,8 @@ public class DecodeActivity extends AppCompatActivity{
         setContentView(R.layout.activity_main);
 
         int frame = 0;
-        int frameEnd = 10;
-        int frameMiddle = frameEnd/2;
+        int frameEnd = 30;
+        int frameMiddle= frameEnd/2;
 
         grab = new FrameGrab();
 
@@ -39,15 +40,16 @@ public class DecodeActivity extends AppCompatActivity{
 
         // Get Range of Frames
         grab.seekToFrame(frame);
-        for(int i = frame; i <= frameEnd; i++){
-            grab.getFrameAt(i);
+        for(int i = frame; i <= frameEnd; i++) {
+            grab.getFrameAt(frame);
             grab.saveBitmap(videoFolder + "test/frame"+i+".jpg");
         }
 
-        // Get one frame
+        // Get Frame from the back, need to resetDecoder
+        grab.resetDecoder();
         grab.seekToFrame(frameMiddle);
         grab.getFrameAt(frameMiddle);
-        Bitmap image = grab.getBitmap();
+        grab.saveBitmap(videoFolder + "test03.jpg");
 
         grab.release();
 

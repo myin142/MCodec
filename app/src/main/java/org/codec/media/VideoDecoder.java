@@ -105,6 +105,13 @@ public class VideoDecoder{
         decoder.start();
     }
 
+    // Reset Decoder
+    public void resetDecoder(){
+        decoder.stop();
+        decoder.configure(format, surface, null, 0);
+        decoder.start();
+    }
+
     // Go to last intra frame of frameNumber
     public void seekTo(int frame){
         info = new BufferInfo();

@@ -30,19 +30,30 @@ public class FrameGrab {
         codec = new VideoDecoder();
     }
 
+    // Call when FrameGrab is not needed anymore
     public void release(){
         codec.release();
         output.release();
         mGLThread.quit();
     }
-    public void setTargetSize(int width, int height){
-        this.width = width;
-        this.height = height;
+
+    // Call when you want to seek back
+    public void resetDecoder(){
+        mGLHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                codec.resetDecoder();
+            }
+        });
     }
 
     // Call before init()
     public void setSource(String path){
         codec.setSource(path);
+    }
+    public void setTargetSize(int width, int height){
+        this.width = width;
+        this.height = height;
     }
 
     // Call before seekToFrame() and getFrameAt()
@@ -74,6 +85,7 @@ public class FrameGrab {
 
     // Call before getFrameAt() and after init()
     // Go to previous frame of framenumber
+    // Only works forward, if you want to go back call resetDecoder()
     public void seekToFrame(int frame){
         codec.seekTo(frame);
     }
