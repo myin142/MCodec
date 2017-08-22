@@ -73,6 +73,7 @@ public class VideoDecoder{
     // Source has to be set
     // Create Extractor and Format
     public void init(){
+        Log.d(TAG, "Initializing Extractor");
         extractor = new MediaExtractor();
         try {
             extractor.setDataSource(source);
@@ -93,6 +94,7 @@ public class VideoDecoder{
     // Surface has to be set, and after init()
     // Create Decoder and Start
     public void startDecoder(){
+        Log.d(TAG, "Initializing Decoder");
         String mime = format.getString(MediaFormat.KEY_MIME);
         try {
             decoder = MediaCodec.createDecoderByType(mime);
@@ -101,12 +103,13 @@ public class VideoDecoder{
         }
         decoder.configure(format, surface, null, 0);
 
-        Log.d(TAG, "Decoder Starting");
+        Log.d(TAG, "Starting Decoder");
         decoder.start();
     }
 
     // Go to last intra frame of frameNumber
     public void seekTo(int frame){
+        Log.d(TAG, "Seek to previous frame of " + frame);
         info = new BufferInfo();
         long time = frame * getFrameRate();
         extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
@@ -114,6 +117,7 @@ public class VideoDecoder{
 
     // Get one frame at frameNumber
     public void getFrameAt(int frame){
+        Log.d(TAG, "Get Frame at " + frame);
         long time = frame * getFrameRate();
         boolean render = false;
         while (!render) {
@@ -136,10 +140,6 @@ public class VideoDecoder{
             if (outputId >= 0) {
                 if (info.presentationTimeUs >= time) render = true;
                 decoder.releaseOutputBuffer(outputId, render);
-                if(render){
-                    Log.d(TAG, "Waiting Frame");
-                    CodecOutput.awaitFrame();
-                }
             }
         }
     }

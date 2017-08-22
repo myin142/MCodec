@@ -23,8 +23,8 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     int mWidth = 640;
     int mHeight = 360;
 
-    static final Object mWaitFrame = new Object();
-    static boolean mFrameAvailable = false;
+    final Object mWaitFrame = new Object();
+    boolean mFrameAvailable = false;
 
     SurfaceTexture sTexture = null;
     Surface surface = null;
@@ -64,7 +64,7 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     }
 
     // Wait for FrameProcessed()
-    public static void awaitFrame(){
+    public void awaitFrame(){
         synchronized (mWaitFrame) {
             try {
                 mWaitFrame.wait();
@@ -82,6 +82,7 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
 
         mGLHelper.drawFrame(sTexture, textureID);
         frame = mGLHelper.readPixels(mWidth, mHeight);
+        frameProcessed();
     }
 
     // Notify awaitFrame() to continue

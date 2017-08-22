@@ -37,20 +37,26 @@ public class FrameGrab {
     // Call before seekToFrame() and getFrameAt()
     // Create Decoder
     public void init(){
+        Log.d(TAG, "Initializing Codec");
         codec.init();
 
-        // Set custom frame size if set, else original size
-        if(width != -1){
-            output.setWidth(width);
-            output.setHeight(height);
-        }else{
-            output.setWidth(codec.getWidth());
-            output.setHeight(codec.getHeight());
-        }
+        mGLHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                // Set custom frame size if set, else original size
+                if(width != -1){
+                    output.setWidth(width);
+                    output.setHeight(height);
+                }else{
+                    output.setWidth(codec.getWidth());
+                    output.setHeight(codec.getHeight());
+                }
 
-        output.init();
-        codec.setSurface(output.getSurface());
-        codec.startDecoder();
+                output.init();
+                codec.setSurface(output.getSurface());
+                codec.startDecoder();
+            }
+        });
     }
 
     // Decode Frame and wait for frame to be processed
@@ -58,13 +64,10 @@ public class FrameGrab {
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
-                long startTime = System.currentTimeMillis();
                 codec.getFrameAt(frame); // Has to be in a different thread than framelistener
-                long endTime = System.currentTimeMillis();
-                long totalTime = (endTime - startTime) / 1000;
-                Log.d(TAG, "Total Time: " + totalTime + "s");
             }
         });
+        output.awaitFrame();
     }
 
     // Call before getFrameAt() and after init()
@@ -84,26 +87,15 @@ public class FrameGrab {
 
     // Cleaning everything up
     public void release(){
-        output.release();
         codec.release();
+        output.release();
         mGLThread.quit();
     }
 
     /* 2 Possible Frame Processes */
     public Bitmap getBitmap(){
-        Bitmap frame = null;
-        while(frame == null){
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            frame = output.getBitmap();
-        }
-        frameProcessed();
-        return frame;
+        return output.getBitmap();
     }
-
     public void saveBitmap(String location){
         Bitmap frame = getBitmap();
         bmToFile(frame, location);
@@ -121,11 +113,6 @@ public class FrameGrab {
         }catch(IOException e){
             e.printStackTrace();
         }
-    }
-
-    // Notify Codec To Continue
-    private void frameProcessed(){
-        output.frameProcessed();
     }
 
 }

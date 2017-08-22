@@ -27,15 +27,21 @@ public class DecodeActivity extends AppCompatActivity{
         setContentView(R.layout.activity_main);
 
         int frame = 0;
+        int frameEnd = 10;
         grab = new FrameGrab();
         grab.setSource(SAMPLE);
-        grab.setTargetSize(1920,1080);
         grab.init();
         grab.seekToFrame(frame);
-        grab.getFrameAt(frame);
-        grab.saveBitmap(videoFolder + "test.jpg");
-        grab.release();
 
+        long startTime = System.currentTimeMillis();
+        for(int i = frame; i <= frameEnd; i++){
+            grab.getFrameAt(i);
+            //grab.saveBitmap(videoFolder + "test.jpg");
+        }
+        long endTime = System.currentTimeMillis();
+        long totalTime = (endTime - startTime) / 1000;
+        Log.d(TAG, "Total Time: " + totalTime + "s");
+        grab.release();
 
     }
 
