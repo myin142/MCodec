@@ -10,10 +10,6 @@ import android.view.Surface;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-/**
- * Created by min on 22/08/2017.
- */
-
 public class VideoDecoder{
     String TAG = "VideoDecoder";
 

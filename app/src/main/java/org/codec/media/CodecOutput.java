@@ -10,10 +10,6 @@ import org.codec.gl.GLHelper;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-/**
- * Created by min on 22/08/2017.
- */
-
 public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     String TAG = "CodecOutput";
 
@@ -24,7 +20,6 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     int mHeight = 360;
 
     final Object mWaitFrame = new Object();
-    boolean mFrameAvailable = false;
 
     SurfaceTexture sTexture = null;
     Surface surface = null;
@@ -71,7 +66,6 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
             } catch (InterruptedException ie) {
                 throw new RuntimeException(ie);
             }
-            mFrameAvailable = false;
         }
     }
 
@@ -88,10 +82,6 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     // Notify awaitFrame() to continue
     public void frameProcessed(){
         synchronized (mWaitFrame) {
-            if (mFrameAvailable) {
-                throw new RuntimeException("mFrameAvailable already set, frame could be dropped");
-            }
-            mFrameAvailable = true;
             mWaitFrame.notifyAll();
         }
     }

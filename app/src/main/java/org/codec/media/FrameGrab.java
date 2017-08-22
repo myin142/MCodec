@@ -8,12 +8,8 @@ import android.util.Log;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-/**
- * Created by min on 22/08/2017.
- */
-
 public class FrameGrab {
-    static String TAG = "FrameGrab";
+    String TAG = "FrameGrab";
 
     HandlerThread mGLThread = null;
     Handler mGLHandler = null;
@@ -34,15 +30,32 @@ public class FrameGrab {
         codec = new VideoDecoder();
     }
 
+    public void release(){
+        codec.release();
+        output.release();
+        mGLThread.quit();
+    }
+    public void setTargetSize(int width, int height){
+        this.width = width;
+        this.height = height;
+    }
+
+    // Call before init()
+    public void setSource(String path){
+        codec.setSource(path);
+    }
+
     // Call before seekToFrame() and getFrameAt()
     // Create Decoder
     public void init(){
         Log.d(TAG, "Initializing Codec");
         codec.init();
 
+        // Run OnFrameAvailable on different thread
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
+
                 // Set custom frame size if set, else original size
                 if(width != -1){
                     output.setWidth(width);
@@ -59,6 +72,12 @@ public class FrameGrab {
         });
     }
 
+    // Call before getFrameAt() and after init()
+    // Go to previous frame of framenumber
+    public void seekToFrame(int frame){
+        codec.seekTo(frame);
+    }
+
     // Decode Frame and wait for frame to be processed
     public void getFrameAt(final int frame){
         mGLHandler.post(new Runnable() {
@@ -67,48 +86,33 @@ public class FrameGrab {
                 codec.getFrameAt(frame); // Has to be in a different thread than framelistener
             }
         });
-        output.awaitFrame();
+        output.awaitFrame(); // Wait for Frame to be available
     }
 
-    // Call before getFrameAt() and after init()
-    // Go to previous frame of framenumber
-    public void seekToFrame(int frame){
-        codec.seekTo(frame);
-    }
+    // Call FrameProcess before another getFrameAt(), otherwise Bitmap will be overwritten
+    /*** 2 Possible Frame Processes ***/
 
-    public void setTargetSize(int width, int height){
-        this.width = width;
-        this.height = height;
-    }
-
-    public void setSource(String path){
-        codec.setSource(path);
-    }
-
-    // Cleaning everything up
-    public void release(){
-        codec.release();
-        output.release();
-        mGLThread.quit();
-    }
-
-    /* 2 Possible Frame Processes */
     public Bitmap getBitmap(){
         return output.getBitmap();
     }
+
     public void saveBitmap(String location){
         Bitmap frame = getBitmap();
-        bmToFile(frame, location);
+        bmToFile(frame, location, Bitmap.CompressFormat.JPEG, 100);
     }
-    /* END OF FRAME PROCESSES */
+    public void saveBitmap(String location, Bitmap.CompressFormat format, int quality){
+        Bitmap frame = getBitmap();
+        bmToFile(frame, location, format, quality);
+    }
 
-    // Save Bitmap to File
-    // Default JPG, Quality 100
-    private void bmToFile(Bitmap bm, String location){
+    /*** END OF FRAME PROCESSES ***/
+
+    // Save Bitmap to File, Default: JPG, Quality 100
+    private void bmToFile(Bitmap bm, String location, Bitmap.CompressFormat format, int quality){
         Log.d(TAG, "Frame saved");
         try {
             FileOutputStream out = new FileOutputStream(location);
-            bm.compress(Bitmap.CompressFormat.JPEG, 100, out);
+            bm.compress(format, quality, out);
             out.close();
         }catch(IOException e){
             e.printStackTrace();
