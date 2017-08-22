@@ -62,6 +62,7 @@ public class VideoDecoder{
         return format.getInteger(MediaFormat.KEY_WIDTH);
     }
     public int getHeight(){ return format.getInteger(MediaFormat.KEY_HEIGHT); }
+    // END CALLABLE AFTER
 
     public void release(){
         decoder.stop();
@@ -70,6 +71,7 @@ public class VideoDecoder{
     }
 
     // Source has to be set
+    // Create Extractor and Format
     public void init(){
         extractor = new MediaExtractor();
         try {
@@ -89,6 +91,7 @@ public class VideoDecoder{
     }
 
     // Surface has to be set, and after init()
+    // Create Decoder and Start
     public void startDecoder(){
         String mime = format.getString(MediaFormat.KEY_MIME);
         try {
@@ -102,12 +105,14 @@ public class VideoDecoder{
         decoder.start();
     }
 
+    // Go to last intra frame of frameNumber
     public void seekTo(int frame){
         info = new BufferInfo();
         long time = frame * getFrameRate();
         extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
     }
 
+    // Get one frame at frameNumber
     public void getFrameAt(int frame){
         long time = frame * getFrameRate();
         boolean render = false;
@@ -131,8 +136,8 @@ public class VideoDecoder{
             if (outputId >= 0) {
                 if (info.presentationTimeUs >= time) render = true;
                 decoder.releaseOutputBuffer(outputId, render);
-                if (render){
-                    Log.d(TAG, "Awaiting Frame");
+                if(render){
+                    Log.d(TAG, "Waiting Frame");
                     CodecOutput.awaitFrame();
                 }
             }

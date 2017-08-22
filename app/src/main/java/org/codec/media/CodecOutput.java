@@ -32,16 +32,13 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
 
     Bitmap frame = null;
 
+    // Create GLHelper and Surface
     public void init(){
-        // Create GLHelper
-        Log.d(TAG, "Create GLHelper");
         mGLHelper = new GLHelper();
         SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
         st.setDefaultBufferSize(mWidth, mHeight);
         mGLHelper.init(st);
 
-        // Create Surface for Codec
-        Log.d(TAG, "Create Surface for Decoder");
         textureID = mGLHelper.createOESTexture();
         sTexture = new SurfaceTexture(textureID);
         sTexture.setOnFrameAvailableListener(this);
@@ -54,10 +51,19 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     public void setHeight(int height){
         mHeight = height;
     }
+
     public Surface getSurface(){
         return surface;
     }
 
+    // Get Bitmap, only once
+    public Bitmap getBitmap(){
+        Bitmap bm = frame;
+        frame = null;
+        return bm;
+    }
+
+    // Wait for FrameProcessed()
     public static void awaitFrame(){
         synchronized (mWaitFrame) {
             try {
@@ -69,15 +75,16 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
         }
     }
 
+    // On Codec Frame Available, save Frame as Bitmap
     @Override
     public void onFrameAvailable(SurfaceTexture surfaceTexture) {
         Log.d(TAG, "Frame available");
 
         mGLHelper.drawFrame(sTexture, textureID);
         frame = mGLHelper.readPixels(mWidth, mHeight);
-        frameProcessed();
     }
 
+    // Notify awaitFrame() to continue
     public void frameProcessed(){
         synchronized (mWaitFrame) {
             if (mFrameAvailable) {
@@ -94,15 +101,5 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
         mGLHelper.release();
     }
 
-    public void saveBitmap(String location){
-        Log.d(TAG, "Frame saved");
-        try {
-            FileOutputStream out = new FileOutputStream(location);
-            frame.compress(Bitmap.CompressFormat.JPEG, 100, out);
-            out.close();
-        }catch(IOException e){
-            e.printStackTrace();
-        }
-    }
 }
 
