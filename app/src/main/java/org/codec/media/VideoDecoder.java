@@ -35,7 +35,7 @@ public class VideoDecoder{
     public Surface getSurface(){
         return surface;
     }
-    public int getFrameRate(){
+    public int getFPS(){
         int frameRate = 24; //may be default
         int numTracks = extractor.getTrackCount();
         for (int i = 0; i < numTracks; ++i) {
@@ -47,9 +47,11 @@ public class VideoDecoder{
                 }
             }
         }
-
-        int result = (int)((1f / frameRate) * 1000 * 1000);
-
+        return frameRate;
+    }
+    public int getFrameRate(){
+        int fps = getFPS();
+        int result = (int)((1f / fps) * 1000 * 1000);
         return result;
     }
 
@@ -105,7 +107,6 @@ public class VideoDecoder{
 
     // Go to last intra frame of frameNumber
     public void seekTo(int frame){
-        Log.d(TAG, "Seek to previous frame of " + frame);
         info = new BufferInfo();
         long time = frame * getFrameRate();
         extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
@@ -113,7 +114,6 @@ public class VideoDecoder{
 
     // Get one frame at frameNumber
     public void getFrameAt(int frame){
-        Log.d(TAG, "Get Frame at " + frame);
         long time = frame * getFrameRate();
         boolean render = false;
         while (!render) {
