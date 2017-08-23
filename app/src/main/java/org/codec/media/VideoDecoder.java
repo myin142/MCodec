@@ -8,8 +8,6 @@ import android.os.Build;
 import android.util.Log;
 import android.view.Surface;
 
-import org.jcodec.codecs.h264.io.model.Frame;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 

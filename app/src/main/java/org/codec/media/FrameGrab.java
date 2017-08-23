@@ -10,7 +10,7 @@ import java.io.IOException;
 
 public class FrameGrab {
     String TAG = "FrameGrab";
-    static boolean DEBUG = true;
+    static boolean DEBUG = false;
 
     HandlerThread mGLThread = null;
     Handler mGLHandler = null;
