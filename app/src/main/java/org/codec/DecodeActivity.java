@@ -31,14 +31,18 @@ public class DecodeActivity extends AppCompatActivity{
         int frameEnd = 30;
         int frameMiddle= frameEnd/2;
 
-        grab = new FrameGrab();
-
         // Create Decoder for File
-        // Re-Run everytime new file is used
+        // Re-run if using new source
+        grab = new FrameGrab();
         grab.setSource(SAMPLE);
         grab.init();
 
-        // Get Range of Frames
+        // Get Single Frame
+        grab.seekToFrame(frame);
+        grab.getFrameAt(frame);
+        Bitmap image = grab.getBitmap();
+
+        // Get Frame Sequence
         grab.seekToFrame(frame);
         for(int i = frame; i <= frameEnd; i++) {
             grab.getFrameAt(frame);
@@ -51,12 +55,8 @@ public class DecodeActivity extends AppCompatActivity{
         grab.getFrameAt(frameMiddle);
         grab.saveBitmap(videoFolder + "test03.jpg");
 
-        for(int i = 0; i < 10000; i++) {
-            grab.init();
-        }
-
+        // Release if framegrab is not needed anymore
         grab.release();
-
     }
 
 }
