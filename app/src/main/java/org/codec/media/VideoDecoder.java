@@ -11,35 +11,28 @@ import android.view.Surface;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class VideoDecoder{
-    String TAG = "VideoDecoder";
-    boolean DEBUG = FrameGrab.DEBUG;
+class VideoDecoder{
+    private String TAG = "VideoDecoder";
+    private boolean DEBUG = FrameGrab.DEBUG;
 
-    MediaExtractor extractor = null;
-    MediaFormat format = null;
-    MediaCodec decoder = null;
-    Surface surface = null;
-    BufferInfo info = null;
+    private MediaExtractor extractor = null;
+    private MediaFormat format = null;
+    private MediaCodec decoder = null;
+    private Surface surface = null;
+    private BufferInfo info = null;
 
-    String source = "";
-    int timeout = 10000;
-    boolean EOS = false;
+    private String source = "";
+    private boolean EOS = false;
 
-    public void setSource(String path){
+    void setSource(String path){
         source = path;
     }
-    public void setSurface(Surface surface){
+    void setSurface(Surface surface){
         this.surface = surface;
     }
 
-    public boolean isEOS(){ return EOS; }
-    public String getSource(){
-        return source;
-    }
-    public Surface getSurface(){
-        return surface;
-    }
-    public int getFPS(){
+    boolean isEOS(){ return EOS; }
+    int getFPS(){
         int frameRate = 24; //may be default
         int numTracks = extractor.getTrackCount();
         for (int i = 0; i < numTracks; ++i) {
@@ -53,22 +46,21 @@ public class VideoDecoder{
         }
         return frameRate;
     }
-    public int getFrameRate(){
+    private int getFrameRate(){
         int fps = getFPS();
-        int result = (int)((1f / fps) * 1000 * 1000);
-        return result;
+        return (int)((1f / fps) * 1000 * 1000);
     }
 
     // Callable after init()
-    public int getWidth(){
+    int getWidth(){
         return format.getInteger(MediaFormat.KEY_WIDTH);
     }
-    public int getHeight(){
+    int getHeight(){
         return format.getInteger(MediaFormat.KEY_HEIGHT);
     }
     // END CALLABLE AFTER
 
-    public void release(){
+    void release(){
         if(decoder != null) {
             decoder.stop();
             decoder.release();
@@ -84,7 +76,7 @@ public class VideoDecoder{
 
     // Source has to be set
     // Create Extractor and Format
-    public void init(){
+    void init(){
         if(DEBUG) Log.d(TAG, "Initializing Extractor");
         extractor = new MediaExtractor();
         try {
@@ -105,7 +97,7 @@ public class VideoDecoder{
 
     // Surface has to be set, and after init()
     // Create Decoder and Start
-    public void startDecoder(){
+    void startDecoder(){
         if(DEBUG) Log.d(TAG, "Initializing Decoder");
         String mime = format.getString(MediaFormat.KEY_MIME);
         try {
@@ -120,7 +112,7 @@ public class VideoDecoder{
     }
 
     // Reset Decoder
-    public void resetDecoder(){
+    void resetDecoder(){
         if(decoder != null) {
             decoder.flush();
             EOS = false;
@@ -128,7 +120,7 @@ public class VideoDecoder{
     }
 
     // Go to last intra frame of frameNumber
-    public void seekTo(int frame){
+    void seekTo(int frame){
         if(DEBUG) Log.d(TAG, "Seek To Frame " + frame);
         info = new BufferInfo();
         long time = frame * getFrameRate();
@@ -136,7 +128,7 @@ public class VideoDecoder{
     }
 
     // Get one frame at frameNumber
-    public void getFrameAt(int frame){
+    void getFrameAt(int frame){
         // Support for < API 21
         ByteBuffer[] inputBuffers = null;
         if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP){
@@ -146,6 +138,7 @@ public class VideoDecoder{
         long time = frame * getFrameRate();
         boolean render = false;
         while (!render) {
+            int timeout = 10000;
             int inputId = decoder.dequeueInputBuffer(timeout);
             if (inputId >= 0) {
                 ByteBuffer buffer = null;

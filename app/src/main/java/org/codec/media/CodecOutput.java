@@ -7,28 +7,28 @@ import android.view.Surface;
 
 import org.codec.gl.GLHelper;
 
-public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
-    String TAG = "CodecOutput";
-    boolean DEBUG = FrameGrab.DEBUG;
+class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
+    private String TAG = "CodecOutput";
+    private boolean DEBUG = FrameGrab.DEBUG;
 
-    GLHelper mGLHelper = null;
+    private GLHelper mGLHelper = null;
 
-    int mDefaultTextureID = 10001;
-    int mWidth = 640;
-    int mHeight = 360;
+    private int mWidth = 640;
+    private int mHeight = 360;
 
-    final Object mWaitFrame = new Object();
+    private final Object mWaitFrame = new Object();
 
-    SurfaceTexture sTexture = null;
-    Surface surface = null;
-    int textureID;
+    private SurfaceTexture sTexture = null;
+    private Surface surface = null;
+    private int textureID;
 
-    Bitmap frame = null;
+    private Bitmap frame = null;
 
     // Create GLHelper and Surface
-    public void init(){
+    void init(){
         if(DEBUG) Log.d(TAG, "Creating GlHelper and Surface");
         mGLHelper = new GLHelper();
+        int mDefaultTextureID = 10001;
         SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
         st.setDefaultBufferSize(mWidth, mHeight);
         mGLHelper.init(st);
@@ -39,26 +39,26 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
         surface = new Surface(sTexture);
     }
 
-    public void setWidth(int width){
+    void setWidth(int width){
         mWidth = width;
     }
-    public void setHeight(int height){
+    void setHeight(int height){
         mHeight = height;
     }
 
-    public Surface getSurface(){
+    Surface getSurface(){
         return surface;
     }
 
     // Get Bitmap, only once
-    public Bitmap getBitmap(){
+    Bitmap getBitmap(){
         Bitmap bm = frame;
         frame = null;
         return bm;
     }
 
     // Wait for FrameProcessed()
-    public void awaitFrame(){
+    void awaitFrame(){
         if(DEBUG) Log.d(TAG, "Waiting for FrameAvailable");
         synchronized (mWaitFrame) {
             try {
@@ -80,14 +80,14 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     }
 
     // Notify awaitFrame() to continue
-    public void frameProcessed(){
+    private void frameProcessed(){
         if(DEBUG) Log.d(TAG, "Frame Processed");
         synchronized (mWaitFrame) {
             mWaitFrame.notifyAll();
         }
     }
 
-    public void release(){
+    void release(){
         if(sTexture != null)
             sTexture.release();
 

@@ -4,7 +4,6 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 
 import org.codec.media.FrameGrab;
 
@@ -18,7 +17,6 @@ public class DecodeActivity extends AppCompatActivity{
     private static String hdHigh24 = "cats_with_timecode-1920x1080-24fps-baseline-14mpbs.mp4";
 
     private static String SAMPLE = videoFolder + lowVideo;
-    private static String TAG = "DecodeActivity";
 
     FrameGrab grab = null;
 

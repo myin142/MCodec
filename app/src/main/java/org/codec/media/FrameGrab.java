@@ -9,16 +9,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 public class FrameGrab {
-    String TAG = "FrameGrab";
+    private String TAG = "FrameGrab";
     static boolean DEBUG = false;
 
-    HandlerThread mGLThread = null;
-    Handler mGLHandler = null;
-    VideoDecoder codec = null;
-    CodecOutput output = null;
+    private HandlerThread mGLThread = null;
+    private Handler mGLHandler = null;
+    private VideoDecoder codec = null;
+    private CodecOutput output = null;
 
-    int width = -1;
-    int height = -1;
+    private int width = -1;
+    private int height = -1;
 
     public FrameGrab(){
         // Create Handler Thread
