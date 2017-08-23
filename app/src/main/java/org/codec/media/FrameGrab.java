@@ -10,6 +10,7 @@ import java.io.IOException;
 
 public class FrameGrab {
     String TAG = "FrameGrab";
+    static boolean DEBUG = false;
 
     HandlerThread mGLThread = null;
     Handler mGLHandler = null;
@@ -21,7 +22,7 @@ public class FrameGrab {
 
     public FrameGrab(){
         // Create Handler Thread
-        Log.d(TAG, "Create Handler Thread");
+        if(DEBUG) Log.d(TAG, "Create Handler Thread");
         mGLThread = new HandlerThread("FrameGrab");
         mGLThread.start();
         mGLHandler = new Handler(mGLThread.getLooper());
@@ -32,6 +33,7 @@ public class FrameGrab {
 
     // Call when FrameGrab is not needed anymore
     public void release(){
+        if(DEBUG) Log.d(TAG, "Releasing FrameGrab");
         codec.release();
         output.release();
         mGLThread.quit();
@@ -39,6 +41,7 @@ public class FrameGrab {
 
     // Call when you want to seek back
     public void resetDecoder(){
+        if(DEBUG) Log.d(TAG, "Reset Decoder");
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -59,14 +62,12 @@ public class FrameGrab {
     // Call before seekToFrame() and getFrameAt()
     // Create Decoder
     public void init(){
-        Log.d(TAG, "Initializing Codec");
         codec.init();
 
         // Run OnFrameAvailable on different thread
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
-
                 // Set custom frame size if set, else original size
                 if(width != -1){
                     output.setWidth(width);
@@ -105,6 +106,7 @@ public class FrameGrab {
     /*** 2 Possible Frame Processes ***/
 
     public Bitmap getBitmap(){
+        if(DEBUG) Log.d(TAG, "Returning Bitmap");
         return output.getBitmap();
     }
 
@@ -121,7 +123,7 @@ public class FrameGrab {
 
     // Save Bitmap to File, Default: JPG, Quality 100
     private void bmToFile(Bitmap bm, String location, Bitmap.CompressFormat format, int quality){
-        Log.d(TAG, "Frame saved");
+        if(DEBUG) Log.d(TAG, "Frame saved");
         try {
             FileOutputStream out = new FileOutputStream(location);
             bm.compress(format, quality, out);

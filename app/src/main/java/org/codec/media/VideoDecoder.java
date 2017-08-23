@@ -7,11 +7,14 @@ import android.media.MediaFormat;
 import android.util.Log;
 import android.view.Surface;
 
+import org.jcodec.codecs.h264.io.model.Frame;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class VideoDecoder{
     String TAG = "VideoDecoder";
+    boolean DEBUG = FrameGrab.DEBUG;
 
     MediaExtractor extractor = null;
     MediaFormat format = null;
@@ -81,7 +84,7 @@ public class VideoDecoder{
     // Source has to be set
     // Create Extractor and Format
     public void init(){
-        Log.d(TAG, "Initializing Extractor");
+        if(DEBUG) Log.d(TAG, "Initializing Extractor");
         extractor = new MediaExtractor();
         try {
             extractor.setDataSource(source);
@@ -102,7 +105,7 @@ public class VideoDecoder{
     // Surface has to be set, and after init()
     // Create Decoder and Start
     public void startDecoder(){
-        Log.d(TAG, "Initializing Decoder");
+        if(DEBUG) Log.d(TAG, "Initializing Decoder");
         String mime = format.getString(MediaFormat.KEY_MIME);
         try {
             decoder = MediaCodec.createDecoderByType(mime);
@@ -111,7 +114,7 @@ public class VideoDecoder{
         }
         decoder.configure(format, surface, null, 0);
 
-        Log.d(TAG, "Starting Decoder");
+        if(DEBUG) Log.d(TAG, "Starting Decoder");
         decoder.start();
     }
 
@@ -126,6 +129,7 @@ public class VideoDecoder{
 
     // Go to last intra frame of frameNumber
     public void seekTo(int frame){
+        if(DEBUG) Log.d(TAG, "Seek To Frame " + frame);
         info = new BufferInfo();
         long time = frame * getFrameRate();
         extractor.seekTo(time, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
@@ -155,6 +159,7 @@ public class VideoDecoder{
             if (outputId >= 0) {
                 if (info.presentationTimeUs >= time) render = true;
                 decoder.releaseOutputBuffer(outputId, render);
+                if(DEBUG && render) Log.d(TAG, "Rendering Output Time " + info.presentationTimeUs);
             }
         }
     }

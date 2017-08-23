@@ -9,6 +9,7 @@ import org.codec.gl.GLHelper;
 
 public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     String TAG = "CodecOutput";
+    boolean DEBUG = FrameGrab.DEBUG;
 
     GLHelper mGLHelper = null;
 
@@ -26,6 +27,7 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
 
     // Create GLHelper and Surface
     public void init(){
+        if(DEBUG) Log.d(TAG, "Creating GlHelper and Surface");
         mGLHelper = new GLHelper();
         SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
         st.setDefaultBufferSize(mWidth, mHeight);
@@ -57,6 +59,7 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
 
     // Wait for FrameProcessed()
     public void awaitFrame(){
+        if(DEBUG) Log.d(TAG, "Waiting for FrameAvailable");
         synchronized (mWaitFrame) {
             try {
                 mWaitFrame.wait();
@@ -69,7 +72,7 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     // On Codec Frame Available, save Frame as Bitmap
     @Override
     public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-        Log.d(TAG, "Frame available");
+        if(DEBUG) Log.d(TAG, "Frame available");
 
         mGLHelper.drawFrame(sTexture, textureID);
         frame = mGLHelper.readPixels(mWidth, mHeight);
@@ -78,6 +81,7 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
 
     // Notify awaitFrame() to continue
     public void frameProcessed(){
+        if(DEBUG) Log.d(TAG, "Frame Processed");
         synchronized (mWaitFrame) {
             mWaitFrame.notifyAll();
         }
