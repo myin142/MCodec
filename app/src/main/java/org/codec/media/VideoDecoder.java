@@ -25,6 +25,7 @@ public class VideoDecoder{
 
     String source = "";
     int timeout = 10000;
+    boolean EOS = false;
 
     public void setSource(String path){
         source = path;
@@ -33,6 +34,7 @@ public class VideoDecoder{
         this.surface = surface;
     }
 
+    public boolean isEOS(){ return EOS; }
     public String getSource(){
         return source;
     }
@@ -123,6 +125,7 @@ public class VideoDecoder{
     public void resetDecoder(){
         if(decoder != null) {
             decoder.flush();
+            EOS = false;
         }
     }
 
@@ -177,6 +180,11 @@ public class VideoDecoder{
                 if (info.presentationTimeUs >= time) render = true;
                 decoder.releaseOutputBuffer(outputId, render);
                 if(DEBUG && render) Log.d(TAG, "Rendering Output Time " + info.presentationTimeUs);
+            }
+
+            if((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0){
+                EOS = true;
+                break;
             }
         }
     }

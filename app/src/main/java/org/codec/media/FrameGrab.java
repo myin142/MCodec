@@ -10,7 +10,7 @@ import java.io.IOException;
 
 public class FrameGrab {
     String TAG = "FrameGrab";
-    static boolean DEBUG = false;
+    static boolean DEBUG = true;
 
     HandlerThread mGLThread = null;
     Handler mGLHandler = null;
@@ -93,6 +93,14 @@ public class FrameGrab {
 
     // Decode Frame and wait for frame to be processed
     public void getFrameAt(final int frame){
+        if(DEBUG) Log.d(TAG, "Get Frame at " + frame);
+
+        // Return if reached End of Stream
+        if(codec.isEOS()){
+            if(DEBUG) Log.d(TAG, "Reached End-Of-Stream");
+            return;
+        }
+
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -102,20 +110,28 @@ public class FrameGrab {
         output.awaitFrame(); // Wait for Frame to be available
     }
 
+    public boolean isEOS(){
+        return codec.isEOS();
+    }
+
     // Call FrameProcess before another getFrameAt(), otherwise Bitmap will be overwritten
     /*** 2 Possible Frame Processes ***/
 
+    // Return Frame as Bitmap, except when reached EOS then only returning null
     public Bitmap getBitmap(){
         if(DEBUG) Log.d(TAG, "Returning Bitmap");
         return output.getBitmap();
     }
 
     public void saveBitmap(String location){
-        Bitmap frame = getBitmap();
-        bmToFile(frame, location, Bitmap.CompressFormat.JPEG, 100);
+        saveBitmap(location, Bitmap.CompressFormat.JPEG, 100);
     }
     public void saveBitmap(String location, Bitmap.CompressFormat format, int quality){
         Bitmap frame = getBitmap();
+        if(frame == null){
+            if(DEBUG) Log.d(TAG, "Bitmap is null. Saving Bitmap not possible");
+            return;
+        }
         bmToFile(frame, location, format, quality);
     }
 

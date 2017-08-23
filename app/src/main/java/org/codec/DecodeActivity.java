@@ -27,8 +27,8 @@ public class DecodeActivity extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        int frame = 0;
-        int frameEnd = 30;
+        int frame = 1750;
+        int frameEnd = 1900;
         int frameMiddle= frameEnd/2;
 
         // Create Decoder for File
@@ -45,6 +45,7 @@ public class DecodeActivity extends AppCompatActivity{
         // Get Frame Sequence
         grab.seekToFrame(frame);
         for(int i = frame; i <= frameEnd; i++) {
+            if(grab.isEOS()){ break; }
             grab.getFrameAt(frame);
             grab.saveBitmap(videoFolder + "test/frame"+i+".jpg");
         }
