@@ -4,6 +4,7 @@ import android.media.MediaCodec;
 import android.media.MediaCodec.BufferInfo;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.os.Build;
 import android.util.Log;
 import android.view.Surface;
 
@@ -137,12 +138,30 @@ public class VideoDecoder{
 
     // Get one frame at frameNumber
     public void getFrameAt(int frame){
+        // Support for < API 21
+        ByteBuffer[] inputBuffers = null;
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP){
+            inputBuffers = decoder.getInputBuffers();
+        }
+
         long time = frame * getFrameRate();
         boolean render = false;
         while (!render) {
             int inputId = decoder.dequeueInputBuffer(timeout);
             if (inputId >= 0) {
-                ByteBuffer buffer = decoder.getInputBuffer(inputId);
+                ByteBuffer buffer = null;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    buffer = decoder.getInputBuffer(inputId);
+                }else{
+                    // Support for < API 21
+                    buffer = inputBuffers[inputId];
+                }
+
+                if(buffer == null){
+                    throw new IllegalStateException("Buffer is null");
+                }
+
                 int sample = extractor.readSampleData(buffer, 0);
                 long presentationTime = extractor.getSampleTime();
 
