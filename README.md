@@ -1,6 +1,5 @@
 # MCodec
-MCodec uses MediaCodec to decode video frames and return it as bitmap. It uses the OpenGL converter 
-from this [repository](https://github.com/kswlee/FrameGrabber) to convert the SurfaceTexture to a Bitmap.
+MCodec is a pure java library that uses Androids MediaCodec to decode video frames and return it as bitmap. It uses the OpenGL converter from this [repository](https://github.com/kswlee/FrameGrabber) to convert the SurfaceTexture to a Bitmap.
 
 # Usage
 There is an example Activity in app/src/main/java/org/codec/DecodeActivity.
