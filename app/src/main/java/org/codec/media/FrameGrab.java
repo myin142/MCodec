@@ -149,4 +149,7 @@ public class FrameGrab {
         }
     }
 
+    // Call after init(), add all getInformations that you might need
+    public int getFrameRate(){ return codec.getFPS(); }
+    public int getDuration() { return codec.getDuration(); } // In Microseconds
 }

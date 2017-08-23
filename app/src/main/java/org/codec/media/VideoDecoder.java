@@ -32,32 +32,22 @@ class VideoDecoder{
     }
 
     boolean isEOS(){ return EOS; }
-    int getFPS(){
-        int frameRate = 24; //may be default
-        int numTracks = extractor.getTrackCount();
-        for (int i = 0; i < numTracks; ++i) {
-            MediaFormat format = extractor.getTrackFormat(i);
-            String mime = format.getString(MediaFormat.KEY_MIME);
-            if (mime.startsWith("video/")) {
-                if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
-                    frameRate = format.getInteger(MediaFormat.KEY_FRAME_RATE);
-                }
-            }
-        }
-        return frameRate;
-    }
     private int getFrameRate(){
         int fps = getFPS();
         return (int)((1f / fps) * 1000 * 1000);
     }
 
     // Callable after init()
+    int getFPS(){
+        return format.getInteger(MediaFormat.KEY_FRAME_RATE);
+    }
     int getWidth(){
         return format.getInteger(MediaFormat.KEY_WIDTH);
     }
     int getHeight(){
         return format.getInteger(MediaFormat.KEY_HEIGHT);
     }
+    int getDuration(){ return format.getInteger(MediaFormat.KEY_DURATION); }
     // END CALLABLE AFTER
 
     void release(){
