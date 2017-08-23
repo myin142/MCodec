@@ -55,8 +55,19 @@ public class DecodeActivity extends AppCompatActivity{
         grab.getFrameAt(frameMiddle);
         grab.saveBitmap(videoFolder + "test03.jpg");
 
-        // Release if framegrab is not needed anymore
+        // Release if framegrab is not needed anymore or creating new FrameGrab
         grab.release();
+
+        // Create new FrameGrab with new Source
+        grab = new FrameGrab();
+        grab.setSource(videoFolder + hdHighVideo);
+        grab.setTargetSize(640, 360);
+        grab.init();
+
+        // Get Single Frame with another Image Size
+        grab.seekToFrame(frame);
+        grab.getFrameAt(frame);
+        Bitmap img = grab.getBitmap();
     }
 
 }
