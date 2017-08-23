@@ -66,11 +66,19 @@ public class VideoDecoder{
         decoder.stop();
         decoder.release();
         extractor.release();
+
+        decoder = null;
+        extractor = null;
+        format = null;
     }
 
     // Source has to be set
     // Create Extractor and Format
     public void init(){
+        if(decoder != null || extractor != null){
+            release();
+        }
+
         Log.d(TAG, "Initializing Extractor");
         extractor = new MediaExtractor();
         try {
