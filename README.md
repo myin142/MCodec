@@ -63,5 +63,9 @@ grab.release();
 grab = new FrameGrab();
 grab.setSource(newFilePath);
 ...
+```
 
+To check if End-Of-Sream is reached use isEOS().
+```java
+grab.isEOS();
 ```
