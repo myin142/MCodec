@@ -26,10 +26,6 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
 
     // Create GLHelper and Surface
     public void init(){
-        if(sTexture != null && surface != null && mGLHelper != null){
-            release();
-        }
-
         mGLHelper = new GLHelper();
         SurfaceTexture st = new SurfaceTexture(mDefaultTextureID);
         st.setDefaultBufferSize(mWidth, mHeight);
@@ -88,9 +84,14 @@ public class CodecOutput implements SurfaceTexture.OnFrameAvailableListener{
     }
 
     public void release(){
-        sTexture.release();
-        surface.release();
-        mGLHelper.release();
+        if(sTexture != null)
+            sTexture.release();
+
+        if(surface != null)
+            surface.release();
+
+        if(mGLHelper != null)
+            mGLHelper.release();
 
         sTexture = null;
         surface = null;

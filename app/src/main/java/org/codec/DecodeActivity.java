@@ -51,6 +51,10 @@ public class DecodeActivity extends AppCompatActivity{
         grab.getFrameAt(frameMiddle);
         grab.saveBitmap(videoFolder + "test03.jpg");
 
+        for(int i = 0; i < 10000; i++) {
+            grab.init();
+        }
+
         grab.release();
 
     }

@@ -59,13 +59,19 @@ public class VideoDecoder{
     public int getWidth(){
         return format.getInteger(MediaFormat.KEY_WIDTH);
     }
-    public int getHeight(){ return format.getInteger(MediaFormat.KEY_HEIGHT); }
+    public int getHeight(){
+        return format.getInteger(MediaFormat.KEY_HEIGHT);
+    }
     // END CALLABLE AFTER
 
     public void release(){
-        decoder.stop();
-        decoder.release();
-        extractor.release();
+        if(decoder != null) {
+            decoder.stop();
+            decoder.release();
+        }
+
+        if(extractor != null)
+            extractor.release();
 
         decoder = null;
         extractor = null;
@@ -75,10 +81,6 @@ public class VideoDecoder{
     // Source has to be set
     // Create Extractor and Format
     public void init(){
-        if(decoder != null || extractor != null){
-            release();
-        }
-
         Log.d(TAG, "Initializing Extractor");
         extractor = new MediaExtractor();
         try {
@@ -115,9 +117,11 @@ public class VideoDecoder{
 
     // Reset Decoder
     public void resetDecoder(){
-        decoder.stop();
-        decoder.configure(format, surface, null, 0);
-        decoder.start();
+        if(decoder != null) {
+            decoder.stop();
+            decoder.configure(format, surface, null, 0);
+            decoder.start();
+        }
     }
 
     // Go to last intra frame of frameNumber
