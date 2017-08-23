@@ -122,9 +122,7 @@ public class VideoDecoder{
     // Reset Decoder
     public void resetDecoder(){
         if(decoder != null) {
-            decoder.stop();
-            decoder.configure(format, surface, null, 0);
-            decoder.start();
+            decoder.flush();
         }
     }
 
