@@ -69,3 +69,9 @@ To check if End-Of-Sream is reached use isEOS().
 ```java
 grab.isEOS();
 ```
+
+To get Informations about the video. You can easily add your own function to get information. MediaFormat or MediaExtractor can be used for that.
+```java
+grab.getFrameRate();
+grab.getDuration();
+```
