@@ -33,6 +33,16 @@ for(int i = frameStart; i <= frameEnd; i++){
 }
 ```
 
+Get Single Frame with Time
+```java
+// Create FrameGrab and Decoder
+...
+
+// Get Frame
+grab.seekToTime(timeInSec);
+grab.getFrameAtTime(timeInSec);
+```
+
 If you want to decode a frame that has already been decoded use resetDecoder(). E.g: Decoded 0-100 Frame, now want Frame 1 again.
 ```java
 // Create FrameGrab and Decoder
