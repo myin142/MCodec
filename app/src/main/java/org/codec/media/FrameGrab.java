@@ -40,12 +40,12 @@ public class FrameGrab {
     }
 
     // Call when you want to seek back
-    public void resetDecoder(){
+    public void flushDecoder(){
         if(DEBUG) Log.d(TAG, "Reset Decoder");
         mGLHandler.post(new Runnable() {
             @Override
             public void run() {
-                codec.resetDecoder();
+                codec.flushDecoder();
             }
         });
     }
@@ -108,6 +108,16 @@ public class FrameGrab {
             }
         });
         output.awaitFrame(); // Wait for Frame to be available
+    }
+
+    // Get Frame with Time
+    public void seekToTime(int time){
+        int frame = time * getFrameRate();
+        seekToFrame(frame);
+    }
+    public void getFrameAtTime(int time){
+        int frame = time * getFrameRate();
+        getFrameAt(frame);
     }
 
     public boolean isEOS(){

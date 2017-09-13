@@ -101,8 +101,8 @@ class VideoDecoder{
         decoder.start();
     }
 
-    // Reset Decoder
-    void resetDecoder(){
+    // Flush Decoder
+    void flushDecoder(){
         if(decoder != null) {
             decoder.flush();
             EOS = false;

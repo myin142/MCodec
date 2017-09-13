@@ -36,9 +36,9 @@ public class DecodeActivity extends AppCompatActivity{
         grab.init();
 
         // Get Single Frame
-        grab.seekToFrame(frame);
-        grab.getFrameAt(frame);
-        Bitmap image = grab.getBitmap();
+        grab.seekToTime(10);
+        grab.getFrameAtTime(10);
+        grab.saveBitmap(videoFolder + "time.jpg");
 
         // Get Frame Sequence
         grab.seekToFrame(frame);
@@ -49,7 +49,7 @@ public class DecodeActivity extends AppCompatActivity{
         }
 
         // Get Frame from the back, need to resetDecoder
-        grab.resetDecoder();
+        grab.flushDecoder();
         grab.seekToFrame(frameMiddle);
         grab.getFrameAt(frameMiddle);
         grab.saveBitmap(videoFolder + "test03.jpg");
